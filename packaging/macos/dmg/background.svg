@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="660" height="400" viewBox="0 0 660 400">
+  <defs>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a1a1a"/>
+      <stop offset="1" stop-color="#111111"/>
+    </linearGradient>
+  </defs>
+  <rect width="660" height="400" fill="url(#shade)"/>
+  <rect x="0.5" y="0.5" width="659" height="399" fill="none" stroke="#333333"/>
+
+  <!-- A quiet folio watermark on the left; the app icon sits over the center. -->
+  <g opacity="0.12" fill="none" stroke="#f6f5f0" stroke-width="2">
+    <path d="M70 72h150l38 38v218H70z"/>
+    <path d="M220 72v38h38"/>
+    <line x1="98" y1="156" x2="220" y2="156"/>
+    <line x1="98" y1="190" x2="196" y2="190"/>
+    <line x1="98" y1="224" x2="220" y2="224"/>
+  </g>
+
+  <!-- Drag direction. -->
+  <g stroke="#cfcfcf" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <line x1="410" y1="205" x2="514" y2="205"/>
+    <path d="M502 193l12 12-12 12"/>
+  </g>
+</svg>

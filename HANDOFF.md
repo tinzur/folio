@@ -67,8 +67,8 @@ Last verified run (2026-11-08, after the search-the-web / mark-colour work):
 - `cargo clippy -p pdfcraft-ui-egui --all-targets -- -D warnings` clean
 - Debug app builds; live control-channel testing works.
 
-Commits so far: `acad37d` initial, `101083a` git workflow docs, `92826b5` search the web +
-mark colour panel + Folio menu bar.
+Commits: `acad37d` initial, `101083a` git workflow docs, `92826b5` search the web + mark colour
+panel + Folio menu bar, `c1d8448` this handoff. Run `git log --oneline` for the current head.
 
 Commands:
 

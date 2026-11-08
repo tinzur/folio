@@ -41,6 +41,8 @@ macro_rules! tl_ctx {
 pub mod canvas;
 mod chrome;
 mod image_engine;
+/// Web actions offered for selected text, configurable in Preferences.
+pub mod webtools;
 pub use combine_grid::ThumbState as CombineThumb;
 pub use combine_ui::{Columns as CombineColumns, CombineView, Lock as CombineLock, SortKey};
 mod commands;
@@ -340,6 +342,8 @@ pub struct PdfCraftApp {
     full_screen_tool: Option<QuickTool>,
     /// Comment author, per-tool colours and widths, pin.
     pub comment_prefs: comments::CommentPrefs,
+    /// Search engines and AI tools offered for selected text (Preferences ▸ Search the web).
+    pub web_tools: Vec<webtools::WebTool>,
     pub(crate) hotbar: hotbar::Hotbar,
     /// Show the annotation tools as the floating palette (the pre-strip layout) instead of the
     /// single row at the top of the document. Off by default; kept for people who prefer it.

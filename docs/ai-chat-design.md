@@ -217,23 +217,61 @@ The "PDF slides left and refits" part is nearly free: `Fit::Width` already recom
 if `hscroll_lock` is on, changing the dock width changes the offset clamp, so the lock and the
 dock need a test together.
 
-### The vertical selection bar
+### The selection bar: horizontal, icons only
 
-You asked for the horizontal bar to become vertical. **I would push back on that, but it is
-your call and it is cheap to change.**
+**Decision (2026-11-08): the bar stays horizontal, and every action is an icon, not a text
+label.** The user rejected short text labels ("Highlight", "Strikethrough", "Underline", …)
+because they make the bar too wide; a row of 24 px icons takes far less space and reads faster.
 
 The bar appears under a text selection. A text selection is wide and short — a line or two of
-prose. A horizontal bar sits under it in the space that is already empty. A vertical bar has to
-sit to one side and will overlap the lines above or below, which is the text you are about to
-read.
+prose — so a horizontal bar sits under it in space that is already empty. A vertical bar has to
+sit to one side and overlaps the lines above or below, which is the text you are about to read.
+Keep it horizontal.
 
-My recommendation: **keep it horizontal, and add an "Ask AI" button to it.** That is a one-line
-addition to the existing loop in `canvas/selection.rs:198-211`, and it inherits all the existing
-positioning, dismissal and accessibility behaviour for free.
+Each action is a Lucide icon (from `crate::icons`, the same set the toolbar uses), with the
+English label as its tooltip and accessibility name:
 
-If you still want vertical, the version that works is a narrow strip of **icons only** (no text
-labels), anchored to the right edge of the selection. Text labels in a vertical stack are too
-wide to sit beside a page.
+| Action | Icon | Enabled when |
+|---|---|---|
+| Search the web | `search` | always (opens the selected text with a configured web action) |
+| Add comment | `message-square-plus` | the document can take comments |
+| Highlight | `highlighter` | the document can take comments |
+| Underline | `underline` | the document can take comments |
+| Strikethrough | `strikethrough` | the document can take comments |
+| Replace text | `replace` | the document can take comments |
+| Copy | `copy` | the selection can be copied |
+
+"We can't" actions still draw, greyed, so the bar keeps its shape and the controls stay
+discoverable.
+
+**Search the web** opens the selected words in the system browser through `Context::open_url`
+(the app's `open_url` path; the `webbrowser` crate is already in the tree). It closes the bar but
+keeps the words selected, exactly like Copy, so a second action can follow.
+
+The sites are **configurable** in Preferences ▸ Search the web: each is a name and a URL template
+with a `{query}` placeholder (for example `https://chatgpt.com/?q={query}`). The defaults are
+Google, DuckDuckGo, Bing, ChatGPT, Gemini and Perplexity. With one action configured the search
+icon opens it directly; with several it opens a menu, so every engine and AI tool is one click
+away. The query is percent-encoded by a small local helper — no new dependency — and the list is
+stored in the app's local settings with the other preferences. This is also why no built-in
+chatbot is needed: any AI tool that accepts a query in its URL can be added here.
+
+This is implemented in `crates/ui-egui/src/webtools.rs` (the list and encoding),
+`crates/ui-egui/src/canvas/selection.rs` (`selection_actions`) and
+`crates/ui-egui/src/dialogs/preferences.rs` (`card_web_tools`).
+
+Adding the button inherits all the existing positioning, dismissal and accessibility behaviour
+from the current bar for free.
+
+### Changing a mark's colour
+
+Clicking an existing highlight, underline or strikeout with the Select tool selects it and opens
+a compact **colour panel** beside the mark, so its colour can be changed without the full Comment
+Properties dialog. Picking a swatch is one `Edit::StyleAnnotation` (one undo step); the panel stays
+open while you try colours and closes when the mark is deselected. Implemented in
+`crates/ui-egui/src/canvas/selection.rs` (`markup_colors`). The full dialog (opacity, thickness,
+author, review history) remains on the comment's right-click menu as **Properties…**.
+
 
 ### Saving a conversation
 

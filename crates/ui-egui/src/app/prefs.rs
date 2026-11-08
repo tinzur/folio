@@ -169,12 +169,17 @@ impl PdfCraftApp {
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
         v["print_paper"] = serde_json::json!(pdfcraft_engine::print::PAPERS.get(self.print_draft.paper).map(|(name, _)| *name));
+        // Search engines and AI tools for selected text (Preferences ▸ Search the web).
+        v["web_tools"] = serde_json::to_value(&self.web_tools).unwrap_or_default();
         v.to_string()
     }
 
     /// Restore state written by `persist`. Unknown or malformed data is ignored.
     pub fn restore(&mut self, json: &str) {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else { return };
+        if let Some(tools) = crate::webtools::restore(&v["web_tools"]) {
+            self.web_tools = tools;
+        }
         if let Ok(mut bar) = serde_json::from_value::<crate::hotbar::Hotbar>(v["hotbar"].clone()) {
             if v["hotbar"].get("placed").is_none() {
                 bar.adopt_legacy();

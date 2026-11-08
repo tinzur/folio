@@ -4890,7 +4890,9 @@ fn text_selection_action_icons() {
 
     assert!(h.state().views[0].selected_text().is_some());
 
-    // Verify all 6 minimalist action icons are present in the floating menu
+    // Verify every action icon is present in the floating menu (labels are the icons'
+    // accessible names).
+    assert!(h.query_all_by_label("Search the web").next().is_some());
     assert!(h.query_all_by_label("Add comment").next().is_some());
     assert!(h.query_all_by_label("Highlight").next().is_some());
     assert!(h.query_all_by_label("Underline").next().is_some());

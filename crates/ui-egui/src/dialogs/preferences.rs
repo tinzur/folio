@@ -536,6 +536,13 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     });
     ui.add_space(12.0);
 
+    // Card 7: Search the web
+    let title7 = tl!("Search the web");
+    preference_card(ui, t, title7, Some("search"), &mut ctx, |ui, ctx| {
+        card_web_tools(ui, app, t, ctx);
+    });
+    ui.add_space(12.0);
+
     if ctx.first_match_scrolled {
         ui.data_mut(|d| d.insert_temp(last_scrolled_id, query.clone()));
     } else if query.trim().is_empty() {
@@ -784,6 +791,60 @@ fn card_javascript(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &m
         ),
         t,
     );
+}
+
+/// Content for Card 7: Search the web
+fn card_web_tools(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut PrefSearchContext) {
+    ctx.label_secondary(
+        ui,
+        tl!("Choose the text and pick Search the web: the selected words go to one of these sites in your browser. Use {query} where the words go."),
+        t,
+    );
+    ui.add_space(6.0);
+    let mut move_up = None;
+    let mut move_down = None;
+    let mut remove = None;
+    let count = app.web_tools.len();
+    for (i, tool) in app.web_tools.iter_mut().enumerate() {
+        ui.horizontal(|ui| {
+            ui.add(crate::widgets::line(&mut tool.label).desired_width(110.0).hint_text(tl!("Name")));
+            let url = ui.add(crate::widgets::line(&mut tool.url).desired_width(320.0).hint_text("https://www.example.com/search?q={query}"));
+            if !tool.url.contains(crate::webtools::QUERY) {
+                url.on_hover_text(tl!("The address needs {query} where the selected text goes."));
+                ui.label(egui::RichText::new("!").color(t.accent));
+            }
+            if icons::button(ui, "chevron-up", 20.0, false, tl!("Move up")).clicked() && i > 0 {
+                move_up = Some(i);
+            }
+            if icons::button(ui, "chevron-down", 20.0, false, tl!("Move down")).clicked() && i + 1 < count {
+                move_down = Some(i);
+            }
+            // Keep at least one action: selecting text always has somewhere to go.
+            let remove_clicked = ui.add_enabled_ui(count > 1, |ui| icons::button(ui, "trash-2", 20.0, false, tl!("Remove"))).inner.clicked();
+            if remove_clicked {
+                remove = Some(i);
+            }
+        });
+    }
+    if let Some(i) = move_up {
+        app.web_tools.swap(i, i - 1);
+    }
+    if let Some(i) = move_down {
+        app.web_tools.swap(i, i + 1);
+    }
+    if let Some(i) = remove {
+        app.web_tools.remove(i);
+    }
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        if ui.add_enabled(count < crate::webtools::MAX_TOOLS, egui::Button::new(tl!("Add a site"))).clicked() {
+            app.web_tools.push(crate::webtools::WebTool::new("", "https://"));
+        }
+        if ui.button(tl!("Restore the defaults")).clicked() {
+            app.web_tools = crate::webtools::defaults();
+        }
+    });
+    ctx.label_secondary(ui, tl!("The first site is also what the search icon offers first in the selected-text bar."), t);
 }
 
 /// Preferences dialog buttons: OK on the right. Returns true to close.

@@ -88,6 +88,7 @@ impl PdfCraftApp {
             space_hand: None,
             full_screen_tool: None,
             comment_prefs: Default::default(),
+            web_tools: crate::webtools::defaults(),
             hotbar: Default::default(),
             floating_toolbar: false,
             theme: ThemeKind::Light,

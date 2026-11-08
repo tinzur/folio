@@ -1153,6 +1153,22 @@ fn persistence_round_trips_and_tolerates_garbage() {
     assert_eq!(b.theme, pdfcraft_ui_egui::theme::ThemeKind::Dark);
 }
 
+#[test]
+fn web_actions_round_trip_and_refuse_a_template_without_a_query() {
+    use pdfcraft_ui_egui::webtools::WebTool;
+
+    let mut a = PdfCraftApp::new();
+    a.web_tools = vec![WebTool::new("ChatGPT", "https://chatgpt.com/?q={query}"), WebTool::new("Work", "https://example.com/find?q={query}")];
+    let mut b = PdfCraftApp::new();
+    b.restore(&a.persist());
+    assert_eq!(b.web_tools, a.web_tools, "the list survives a restart in order");
+
+    // A template with no placeholder is dropped; with nothing valid left, the defaults return.
+    let mut c = PdfCraftApp::new();
+    c.restore(r#"{"web_tools":[{"label":"Broken","url":"https://example.com/"}]}"#);
+    assert_eq!(c.web_tools, pdfcraft_ui_egui::webtools::defaults());
+}
+
 /// A tool's saved "no fill" (`"fill": null`) clears a fill it had as its default; a missing or
 /// malformed fill keeps it (#340).
 #[test]

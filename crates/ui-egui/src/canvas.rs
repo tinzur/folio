@@ -65,7 +65,7 @@ use organize::organize_grid;
 use organize::sharp_enough;
 pub(crate) use page_input::PageToolContext;
 use page_input::{PageInput, cancel_on_escape, page_overlays, page_tool_input, text_layer};
-use selection::{Selection, Span, click_unit, selection_actions};
+use selection::{Selection, Span, click_unit, markup_colors, selection_actions};
 pub use xform::PageXform;
 use xform::snap_to_pixels;
 use zoom::anchored_scroll;
@@ -2819,6 +2819,26 @@ fn hold_sharp_renders(ui: &egui::Ui, view: &mut DocView, scale: f32) -> bool {
 
 /// A destination's position (bookmarks, links) refines `goto`: its point at the window's top-left,
 /// or the centre of a /FitR rectangle at the window's centre.
+/// Opens the compact colour panel for a selected highlight, underline or strikeout, so its colour
+/// changes without the full Comment Properties dialog. Only with the Select tool, on a document
+/// that shows comments, and with no text selected (the mark itself is what is selected).
+fn markup_colour_panel(
+    ui: &mut egui::Ui,
+    avail: Rect,
+    view: &mut DocView,
+    info: &DocInfo,
+    tool: QuickTool,
+    comments_hidden: bool,
+    unobstructed: bool,
+) {
+    if !unobstructed || tool != QuickTool::Select || comments_hidden || view.selection.is_some() {
+        return;
+    }
+    if let Some(edit) = markup_colors(ui, avail, view, info) {
+        view.pending_edit = Some(edit);
+    }
+}
+
 fn refine_goto_point(mut scroll: egui::ScrollArea, view: &mut DocView, geometry: &ScrollGeometry<'_>) -> egui::ScrollArea {
     let ScrollGeometry { rects, y_shift, content_w, content_h, avail, .. } = *geometry;
     if let Some((page, fx, fy, rel)) = view.goto_point.take() {
@@ -3119,8 +3139,12 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     view.viewport_screen = out.inner_rect;
     view.auto_scroll.paint(ui, avail);
     if unobstructed && matches!(tool, QuickTool::Select | QuickTool::ColumnSelect) {
-        copy_selected |= selection_actions(ui, avail, view, info, prefs, allowed && !comments_hidden, can_copy);
+        let bar = selection::SelectionBar { prefs, web_tools: &app.web_tools, can_comment: allowed && !comments_hidden, can_copy };
+        copy_selected |= selection_actions(ui, avail, view, info, &bar);
     }
+    // Selecting an existing highlight, underline or strikeout opens a compact colour panel, so
+    // its colour changes without the full Comment Properties dialog.
+    markup_colour_panel(ui, avail, view, info, tool, comments_hidden, unobstructed);
 
     // Collect all main-page demand, including cached surfaces, for byte admission later.
     // Pan-settle debounce for tiled pages: each tile costs a full page interpret, so holding

@@ -3,6 +3,7 @@
 
 use egui::{Event, Modifiers, MouseWheelUnit, PointerButton, Pos2, TouchPhase};
 use egui_kittest::Harness;
+use egui_kittest::kittest::Queryable;
 use pdfcraft_ui_egui::PdfCraftApp;
 
 /// One 300×200 page with two lines of Helvetica text.
@@ -73,6 +74,19 @@ fn quick_clicks_select_a_word_then_the_line_then_the_page() {
     click(&mut h, at);
     click(&mut h, at);
     assert_eq!(h.state().views[0].selected_text().as_deref(), Some("quick"));
+}
+
+#[test]
+fn selected_text_offers_search_the_web_in_the_action_bar() {
+    let (mut h, at) = harness(|_| {});
+    // Two clicks select the word, which brings the horizontal action bar up.
+    click(&mut h, at);
+    click(&mut h, at);
+    assert_eq!(h.state().views[0].selected_text().as_deref(), Some("quick"));
+    // The bar's actions are icons with their label as the accessible name.
+    h.get_by_label("Search the web");
+    h.get_by_label("Add comment");
+    h.get_by_label("Copy");
 }
 
 #[test]

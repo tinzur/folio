@@ -15,6 +15,21 @@ This is a **git repository** (initialised 2026-11-08, branch `main`). `git diff`
 clean checkout all work; commit before starting a change and after it passes the tests.
 `~/Downloads/Pdfcraft` is an empty folder and is not the project.
 
+Version control basics:
+
+```bash
+git status                  # what changed
+git diff                    # what changed, in detail
+git add -A && git commit -m "…"   # a checkpoint
+git checkout -- <file>      # throw away one file's changes
+git revert <sha>            # undo a commit, keeping history
+git tag -a v0.18.2 -m "0.18.2"
+```
+
+There is no remote yet. `target/`, `dist/`, `assets/models/` and `.perch/` are ignored, so a
+commit is about 43 MB of source, not the 16 GB build tree. Work on short-lived branches
+(`feat/…`, `fix/…`) off `main`; `main` always builds and always passes the tests below.
+
 The app is a Rust/egui fork/rebrand of the open-source **PdfCraft** engine. The current display
 name is the **working name “Folio”**, not a final naming decision. The user is TINZUR
 (https://t.me/Tinzur); the QR code in the app is their Telegram profile, not an app logo.

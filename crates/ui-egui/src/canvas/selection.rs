@@ -150,22 +150,92 @@ impl DocView {
 
 #[derive(Clone, Copy)]
 enum SelectionAction {
+    /// Open the selected text with the web action at this index.
+    Search(usize),
     Note,
     Markup(comments::CommentTool),
     Replace,
     Copy,
 }
 
+/// The bar's icon row. Returns the action clicked this frame.
+fn actions_row(ui: &mut egui::Ui, bar: &SelectionBar<'_>) -> Option<SelectionAction> {
+    let mut chosen = None;
+    ui.horizontal(|ui| {
+        let cell = 24.0;
+        // Search the web works on any text selection. With several actions configured the icon
+        // opens a menu, so each search engine or AI tool is one click away.
+        let search = crate::icons::button(ui, "search", cell, false, tl!("Search the web"));
+        if bar.web_tools.len() <= 1 {
+            if search.clicked() && !bar.web_tools.is_empty() {
+                chosen = Some(SelectionAction::Search(0));
+            }
+        } else {
+            egui::Popup::menu(&search).show(|ui| {
+                for (index, tool) in bar.web_tools.iter().enumerate() {
+                    if ui.button(&tool.label).clicked() {
+                        chosen = Some(SelectionAction::Search(index));
+                        ui.close();
+                    }
+                }
+            });
+        }
+        // The rest need a document that accepts comments or a copyable selection; the flag gates
+        // both the visual state and the click.
+        if bar.can_comment {
+            if crate::icons::button(ui, "message-square-plus", cell, false, tl!("Add comment")).clicked() {
+                chosen = Some(SelectionAction::Note);
+            }
+            for (icon, label, action) in [
+                ("highlighter", tl!("Highlight"), SelectionAction::Markup(comments::CommentTool::Highlight)),
+                ("underline", tl!("Underline"), SelectionAction::Markup(comments::CommentTool::Underline)),
+                ("strikethrough", tl!("Strikethrough"), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
+                ("replace", tl!("Replace text"), SelectionAction::Replace),
+            ] {
+                if crate::icons::button(ui, icon, cell, false, label).clicked() {
+                    chosen = Some(action);
+                }
+            }
+        } else {
+            // Draw the icons greyed out so the bar keeps its shape and the controls stay
+            // discoverable, without acting.
+            ui.add_enabled_ui(false, |ui| {
+                crate::icons::button(ui, "message-square-plus", cell, false, tl!("Add comment"));
+                for (icon, label) in [
+                    ("highlighter", tl!("Highlight")),
+                    ("underline", tl!("Underline")),
+                    ("strikethrough", tl!("Strikethrough")),
+                    ("replace", tl!("Replace text")),
+                ] {
+                    crate::icons::button(ui, icon, cell, false, label);
+                }
+            });
+        }
+        if bar.can_copy {
+            if crate::icons::button(ui, "copy", cell, false, tl!("Copy")).clicked() {
+                chosen = Some(SelectionAction::Copy);
+            }
+        } else {
+            ui.add_enabled_ui(false, |ui| {
+                crate::icons::button(ui, "copy", cell, false, tl!("Copy"));
+            });
+        }
+    });
+    chosen
+}
+
+/// The settings and permissions the selected-text bar reads.
+pub(super) struct SelectionBar<'a> {
+    pub prefs: &'a comments::CommentPrefs,
+    pub web_tools: &'a [crate::webtools::WebTool],
+    /// The document accepts comments (the markup tools are shown enabled).
+    pub can_comment: bool,
+    /// The selection can be copied.
+    pub can_copy: bool,
+}
+
 /// Actions on an existing text selection, next to the selected words.
-pub(super) fn selection_actions(
-    ui: &mut egui::Ui,
-    viewport: Rect,
-    view: &mut DocView,
-    info: &DocInfo,
-    prefs: &comments::CommentPrefs,
-    can_comment: bool,
-    can_copy: bool,
-) -> bool {
+pub(super) fn selection_actions(ui: &mut egui::Ui, viewport: Rect, view: &mut DocView, info: &DocInfo, bar: &SelectionBar<'_>) -> bool {
     if ui.input(|input| input.pointer.is_decidedly_dragging()) {
         return false;
     }
@@ -194,26 +264,20 @@ pub(super) fn selection_actions(
         ui.ctx(),
         |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    for (label, action) in [
-                        (tl!("Add comment"), SelectionAction::Note),
-                        (tl!("Highlight"), SelectionAction::Markup(comments::CommentTool::Highlight)),
-                        (tl!("Underline"), SelectionAction::Markup(comments::CommentTool::Underline)),
-                        (tl!("Strikethrough"), SelectionAction::Markup(comments::CommentTool::StrikeOut)),
-                        (tl!("Replace text"), SelectionAction::Replace),
-                    ] {
-                        if ui.add_enabled(can_comment, egui::Button::new(label)).clicked() {
-                            chosen = Some(action);
-                        }
-                    }
-                    if ui.add_enabled(can_copy, egui::Button::new(tl!("Copy"))).clicked() {
-                        chosen = Some(SelectionAction::Copy);
-                    }
-                });
+                chosen = actions_row(ui, bar);
             });
         },
     );
     let Some(action) = chosen else { return false };
+    if let SelectionAction::Search(index) = action {
+        // Open the selected words with that web action in the system browser, then close the
+        // bar but keep the words selected, like Copy.
+        if let Some(url) = bar.web_tools.get(index).and_then(|tool| tool.url_for(&selected)) {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(&url));
+        }
+        view.actions_dismissed = Some(selection);
+        return false;
+    }
     if let SelectionAction::Copy = action {
         // Copying closes the bar but keeps the words selected, for ⌘C or a second action.
         view.actions_dismissed = Some(selection);
@@ -242,13 +306,48 @@ pub(super) fn selection_actions(
             view.pending_edit = Some(Edit::AddAnnotation(pdfcraft_engine::NewAnnotation {
                 page,
                 shape: pdfcraft_engine::Shape::TextMarkup { kind, quads },
-                style: prefs.style(tool),
+                style: bar.prefs.style(tool),
                 contents: String::new(),
-                author: prefs.author.clone(),
+                author: bar.prefs.author.clone(),
             }));
         }
-        // Copy is dispatched through the app after the view borrow ends.
-        SelectionAction::Copy => {}
+        // Copy is dispatched through the app after the view borrow ends; Search is
+        // handled above, before the selection is cleared.
+        SelectionAction::Copy | SelectionAction::Search(_) => {}
     }
     false
+}
+
+/// A compact colour panel for the selected highlight, underline or strikeout. Selecting one of
+/// those marks (a click on the text) opens it, so its colour can be changed without the full
+/// Comment Properties dialog. Returns the edit to apply, if a swatch was picked.
+pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &DocView, info: &DocInfo) -> Option<Edit> {
+    let (page, index) = view.comments.selected?;
+    let a = info.annotations.iter().find(|a| a.page == page && a.index == index && !a.is_reply())?;
+    if a.locked || !matches!(a.subtype.as_str(), "Highlight" | "Underline" | "StrikeOut" | "Squiggly") {
+        return None;
+    }
+    let xf = view.page_xform(page)?;
+    let rect = xf.user_rect(info, page, a.rect);
+    if !viewport.intersects(rect) {
+        return None;
+    }
+    let width = 232.0;
+    let x = rect.left().clamp(viewport.left() + 8.0, (viewport.right() - width).max(viewport.left() + 8.0));
+    let y = if rect.bottom() + 132.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 132.0).max(viewport.top() + 6.0) };
+    let mut picked = None;
+    egui::Area::new(egui::Id::unique(("markup-colours", view.id.0, page, index))).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(
+        ui.ctx(),
+        |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_max_width(width - 16.0);
+                ui.label(egui::RichText::new(tl!("Colour")).strong());
+                ui.add_space(4.0);
+                if let Some(colour) = comments::swatch_grid(ui, a.color.map(|c| c.map(f64::from))) {
+                    picked = Some(Edit::StyleAnnotation { page, index, color: Some(colour), opacity: None, width: None, endings: None });
+                }
+            });
+        },
+    );
+    picked
 }

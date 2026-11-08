@@ -190,6 +190,33 @@ fn the_quick_bar_colour_changes_the_selected_comment() {
 }
 
 #[test]
+fn clicking_a_highlight_opens_a_colour_panel() {
+    let mut h = harness(|app| app.set_option("quick", "highlight").unwrap());
+    let (a, b) = {
+        let v = &h.state().views[0];
+        (v.glyph_screen_pos(0, 4).expect("text layer"), v.glyph_screen_pos(0, 14).expect("glyph"))
+    };
+    drag(&mut h, a, b);
+    assert_eq!(comments(&h)[0].color, Some([1.0, 0.94, 0.0]));
+
+    // Back to selecting, with nothing selected; a click on the mark opens the colour panel.
+    h.state_mut().quick_tool = QuickTool::Select;
+    h.state_mut().views[0].comments.selected = None;
+    h.run_steps(2);
+    let mark = &comments(&h)[0];
+    let centre = ((mark.rect[0] + mark.rect[2]) / 2.0, (mark.rect[1] + mark.rect[3]) / 2.0);
+    click_pt(&mut h, centre);
+    assert_eq!(h.state().views[0].comments.selected, Some((0, 0)), "the click selects the mark");
+    h.get_by_label("Blue").click();
+    h.run_steps(3);
+
+    let state = h.state();
+    let doc = state.session.get(state.views[0].id).expect("document");
+    assert_eq!(doc.comment_props(0, 0).and_then(|props| props.color), Some([0.0, 0.47, 0.84]));
+    assert_eq!(doc.can_undo(), Some("Change comment properties"), "recoloring is one undo step");
+}
+
+#[test]
 fn the_quick_bar_colour_changes_the_selected_arrow() {
     use pdfcraft_ui_egui::comments::CommentTool;
 

@@ -197,7 +197,22 @@ fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<S
     out
 }
 
+/// Name the process "Folio" so a menu bar built from it reads "Folio" (macOS; a no-op elsewhere).
+#[cfg(target_os = "macos")]
+fn set_process_name(name: &str) {
+    use objc2_foundation::{NSProcessInfo, NSString};
+    let name = NSString::from_str(name);
+    NSProcessInfo::processInfo().setProcessName(&name);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_process_name(_name: &str) {}
+
 fn main() -> eframe::Result {
+    // The macOS menu bar takes the app's name from the process when the binary runs unbundled
+    // (`target/debug/pdfcraft`), not the bundle's CFBundleName. Set it before winit builds the
+    // menu so the permanent menu bar says "Folio" too.
+    set_process_name(pdfcraft_ui_egui::APP_NAME);
     // Windows: the update helper is a copy of this program started with `--finish-update`.
     #[cfg(windows)]
     if let Some(result) = craft_update::self_update::finish(&pdfcraft_ui_egui::UPDATE_APP, &std::env::args_os().skip(1).collect::<Vec<_>>()) {
@@ -270,7 +285,7 @@ fn main() -> eframe::Result {
     let started = Rc::new(Cell::new(false));
     let first = if choice == RendererChoice::Gl { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu };
     let result = eframe::run_native(
-        "PdfCraft",
+        pdfcraft_ui_egui::APP_NAME,
         native_options(launch.integrated, launch.window_controls.is_some(), first),
         app_creator(
             launch.clone(),
@@ -288,7 +303,7 @@ fn main() -> eframe::Result {
             // usually still works there, so that's better than quitting.
             log::error!("the GPU renderer (wgpu) didn't start: {e}. Starting with OpenGL instead; set PDFCRAFT_RENDERER=gl to skip wgpu.");
             eframe::run_native(
-                "PdfCraft",
+                pdfcraft_ui_egui::APP_NAME,
                 native_options(launch.integrated, launch.window_controls.is_some(), eframe::Renderer::Glow),
                 app_creator(
                     launch,
@@ -331,7 +346,7 @@ fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
 /// The window and renderer settings for one run.
 fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer) -> eframe::NativeOptions {
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("PdfCraft")
+        .with_title(pdfcraft_ui_egui::APP_NAME)
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size([820.0, 520.0])
         .with_drag_and_drop(true)

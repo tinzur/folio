@@ -11,6 +11,7 @@ pub enum ThemeKind {
     #[default]
     Light,
     Dark,
+    Sepia,
 }
 
 /// The saved user choice, independent of the light/dark colours currently displayed. A fresh
@@ -21,6 +22,7 @@ pub enum ThemePreference {
     System,
     Light,
     Dark,
+    Sepia,
 }
 
 impl ThemePreference {
@@ -30,6 +32,7 @@ impl ThemePreference {
         match self {
             Self::Light => ThemeKind::Light,
             Self::Dark => ThemeKind::Dark,
+            Self::Sepia => ThemeKind::Sepia,
             Self::System => match system {
                 Some(true) => ThemeKind::Dark,
                 Some(false) => ThemeKind::Light,
@@ -124,6 +127,31 @@ impl Tokens {
                 page_shadow: Color32::from_black_alpha(120),
                 radius: 6,
             },
+            ThemeKind::Sepia => Self {
+                kind,
+                mono: false,
+                titlebar: Color32::from_rgb(0xEB, 0xE1, 0xCE),
+                chrome: Color32::from_rgb(0xF6, 0xF0, 0xE2),
+                panel: Color32::from_rgb(0xF6, 0xF0, 0xE2),
+                pasteboard: Color32::from_rgb(0xDF, 0xD4, 0xC0),
+                card: Color32::from_rgb(0xFB, 0xF7, 0xEE),
+                border: Color32::from_rgb(0xD2, 0xC5, 0xAF),
+                divider: Color32::from_rgb(0xDC, 0xD0, 0xBC),
+                text: Color32::from_rgb(0x3B, 0x2E, 0x20),
+                text_muted: Color32::from_rgb(0x6E, 0x5D, 0x4B),
+                text_faint: Color32::from_rgb(0x8C, 0x7B, 0x69),
+                icon: Color32::from_rgb(0x52, 0x42, 0x33),
+                hover: Color32::from_rgb(0xEE, 0xE5, 0xD3),
+                pressed: Color32::from_rgb(0xE2, 0xD7, 0xC4),
+                selected: Color32::from_rgb(0xE5, 0xD8, 0xC1),
+                accent: Color32::from_rgb(0x9E, 0x5B, 0x24),
+                accent_text: Color32::from_rgb(0x7A, 0x42, 0x14),
+                accent_soft: Color32::from_rgb(0xEE, 0xDF, 0xC8),
+                field: Color32::from_rgb(0xFA, 0xF5, 0xEA),
+                badge_new: Color32::from_rgb(0x9E, 0x5B, 0x24),
+                page_shadow: Color32::from_black_alpha(45),
+                radius: 6,
+            },
         }
     }
 
@@ -181,6 +209,28 @@ impl Tokens {
                 t.field = Color32::from_rgb(0x10, 0x10, 0x10);
                 t.badge_new = Color32::from_rgb(0xED, 0xED, 0xED);
                 t.page_shadow = Color32::from_black_alpha(170);
+            }
+            ThemeKind::Sepia => {
+                t.titlebar = Color32::from_rgb(0xEB, 0xE1, 0xCE);
+                t.chrome = Color32::from_rgb(0xF6, 0xF0, 0xE2);
+                t.panel = Color32::from_rgb(0xF6, 0xF0, 0xE2);
+                t.pasteboard = Color32::from_rgb(0xDF, 0xD4, 0xC0);
+                t.card = Color32::from_rgb(0xFB, 0xF7, 0xEE);
+                t.border = Color32::from_rgb(0xD2, 0xC5, 0xAF);
+                t.divider = Color32::from_rgb(0xDC, 0xD0, 0xBC);
+                t.text = Color32::from_rgb(0x3B, 0x2E, 0x20);
+                t.text_muted = Color32::from_rgb(0x6E, 0x5D, 0x4B);
+                t.text_faint = Color32::from_rgb(0x8C, 0x7B, 0x69);
+                t.icon = Color32::from_rgb(0x52, 0x42, 0x33);
+                t.hover = Color32::from_rgb(0xEE, 0xE5, 0xD3);
+                t.pressed = Color32::from_rgb(0xE2, 0xD7, 0xC4);
+                t.selected = Color32::from_rgb(0xE5, 0xD8, 0xC1);
+                t.accent = Color32::from_rgb(0x3B, 0x2E, 0x20);
+                t.accent_text = Color32::from_rgb(0x2A, 0x20, 0x16);
+                t.accent_soft = Color32::from_rgb(0xEE, 0xDF, 0xC8);
+                t.field = Color32::from_rgb(0xFA, 0xF5, 0xEA);
+                t.badge_new = Color32::from_rgb(0x3B, 0x2E, 0x20);
+                t.page_shadow = Color32::from_black_alpha(45);
             }
         }
         t

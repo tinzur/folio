@@ -6,7 +6,7 @@
 use egui::{CornerRadius, Rect, Sense, Stroke, pos2, vec2};
 
 use crate::theme::Tokens;
-use crate::{PdfCraftApp, QuickTool, SplitSide};
+use crate::{PdfCraftApp, QuickTool, SplitSide, icons};
 
 const DIVIDER: f32 = 6.0;
 
@@ -44,6 +44,7 @@ pub(crate) fn sync(app: &mut PdfCraftApp) {
         return;
     }
     let Some((_, active)) = app.active_ids() else {
+        app.split_saved = Some(split);
         app.split = None;
         return;
     };
@@ -71,6 +72,7 @@ pub(crate) fn sync(app: &mut PdfCraftApp) {
 pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) -> bool {
     let Some(mut split) = app.split else { return false };
     let Some((_, active_id)) = app.active_ids() else {
+        app.split_saved = Some(split);
         app.split = None;
         return false;
     };
@@ -138,8 +140,8 @@ pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) -> bool {
         app.split_ratio = split.ratio;
     }
 
-    pane(app, ui, left, split.left, split.focus == SplitSide::Left);
-    pane(app, ui, right, split.right, split.focus == SplitSide::Right);
+    pane(app, ui, left, SplitSide::Left, split.left, split.focus == SplitSide::Left);
+    pane(app, ui, right, SplitSide::Right, split.right, split.focus == SplitSide::Right);
 
     if split.scroll_lock {
         // One pane leads; the other follows its offset next frame (the same mechanism Compare
@@ -164,14 +166,38 @@ pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) -> bool {
         ui.painter().rect_filled(divider.shrink2(vec2(2.0, 0.0)), CornerRadius::same(2), t.hover);
     }
 
+    // Dedicated Close-Pane control directly on the divider
+    let close_size = 20.0;
+    let close_center = pos2(divider.center().x, divider.top() + 18.0);
+    let close_rect = Rect::from_center_size(close_center, vec2(close_size, close_size));
+    let close_resp = ui.interact(close_rect, ui.scope_id().with("close-split-divider"), Sense::click());
+    if close_resp.hovered() {
+        ui.painter().circle_filled(close_center, 10.0, t.card);
+        ui.painter().circle_stroke(close_center, 10.0, Stroke::new(1.0, t.border));
+        icons::paint(ui, close_rect.shrink(5.0), "x", 10.0, t.accent);
+    }
+    if close_resp.on_hover_text(tl!("Close Split View")).clicked() {
+        app.split = None;
+        app.split_saved = None;
+        return false;
+    }
+
     // The tab strip and the tool row read `active`: leave it on the focused pane.
     app.split = Some(split);
     app.active = app.views.iter().position(|v| v.id == focus_id);
     true
 }
 
-fn pane(app: &mut PdfCraftApp, ui: &mut egui::Ui, rect: Rect, id: pdfcraft_engine::DocId, focused: bool) {
+fn pane(app: &mut PdfCraftApp, ui: &mut egui::Ui, rect: Rect, side: SplitSide, id: pdfcraft_engine::DocId, focused: bool) {
     let Some(index) = app.views.iter().position(|v| v.id == id) else { return };
+    let resp = ui.interact(rect, ui.scope_id().with(("split-focus", id.0)), Sense::click());
+    if resp.clicked() {
+        if let Some(mut split) = app.split {
+            split.focus = side;
+            app.split = Some(split);
+        }
+        app.active = Some(index);
+    }
     let t = Tokens::get(ui.ctx());
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).id_salt(("split-pane", id.0)));
     child.set_clip_rect(rect);

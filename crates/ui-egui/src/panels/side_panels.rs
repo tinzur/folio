@@ -111,9 +111,8 @@ impl SidePanels {
     }
 
     /// Return the layout [`Edge`] (`Start` or `End`) where the navigation rail and side panel dock.
-    pub fn rail_edge(&self) -> Edge {
-        // The inspector is a right-hand sheet; the left side belongs to the page.
-        Edge::End
+    pub fn rail_edge(&self, dock: Option<&str>) -> Edge {
+        if dock == Some("right") { Edge::End } else { Edge::Start }
     }
 
     pub fn width(&self, pane: Pane) -> f32 {
@@ -346,7 +345,7 @@ impl PaneContent<Pane> for Content<'_> {
     }
 
     fn default_state(&self, pane: &Pane) -> PaneState {
-        state_of(&self.app.side_panels, *pane)
+        state_of(&self.app.side_panels, *pane, self.app.hotbar.dock.as_deref())
     }
 
     fn size_range(&self, pane: &Pane) -> RangeInclusive<f32> {
@@ -364,10 +363,10 @@ impl PaneContent<Pane> for Content<'_> {
 }
 
 /// Return the docked [`PaneState`] (edge and width) for `pane`.
-fn state_of(panels: &SidePanels, pane: Pane) -> PaneState {
+fn state_of(panels: &SidePanels, pane: Pane, dock: Option<&str>) -> PaneState {
     let edge = match pane {
         Pane::Tools => panels.tools_edge(),
-        Pane::Side => panels.rail_edge(),
+        Pane::Side => panels.rail_edge(dock),
     };
     PaneState::docked(edge, panels.width(pane))
 }
@@ -429,7 +428,8 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = crate::theme::Tokens::get(ui.ctx());
     let labels = PaneLabels { resize: crate::i18n::t("Resize panels").to_owned(), ..PaneLabels::default() };
     let panels = app.side_panels;
-    // Columns: both panes may share the right edge, Tools outermost, as `open` lists them.
+    let dock = app.hotbar.dock.clone();
+    // Columns: both panes may share the edge, Tools outermost, as `open` lists them.
     let host = egui::Id::unique("pdfcraft-side-panels");
     let output = PaneHost::new(host)
         .policy(SidePolicy::Columns)
@@ -437,7 +437,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         .labels(labels)
         .frame(egui::Frame::NONE.fill(t.panel))
         .body_margin(egui::Margin::ZERO)
-        .show(ui, &open, |pane| Some(state_of(&panels, *pane)), &mut Content { app });
+        .show(ui, &open, |pane| Some(state_of(&panels, *pane, dock.as_deref())), &mut Content { app });
 
     keep_resize_edges_off_scrollbars(ui, host, &open);
     for request in output.requests {
@@ -576,9 +576,10 @@ mod tests {
     fn rail_side_placement_and_restore() {
         let mut panels = SidePanels::default();
         assert_eq!(panels.rail_side, ToolsSide::Right);
-        assert_eq!(panels.rail_edge(), Edge::End);
+        assert_eq!(panels.rail_edge(Some("right")), Edge::End);
+        assert_eq!(panels.rail_edge(None), Edge::Start);
         panels.rail_side = ToolsSide::Left;
-        assert_eq!(panels.rail_edge(), Edge::End, "the inspector stays on the right in the reader layout");
+        assert_eq!(panels.rail_edge(Some("left")), Edge::Start);
         let restored = restore(&json!({"side_panels": {"version": 1, "rail_side": "left"}}));
         assert_eq!(restored.panels.rail_side, ToolsSide::Left);
     }

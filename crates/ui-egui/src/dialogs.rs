@@ -1043,6 +1043,104 @@ fn dialog_split_pick(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending
             });
         }
     }
+
+    let current_path = app.active_ids().and_then(|(_, id)| app.session.get(id)).and_then(|doc| doc.path.as_deref());
+    let recent_candidates: Vec<crate::RecentFile> = app.recent.iter().filter(|r| Some(r.path.as_str()) != current_path).take(6).cloned().collect();
+
+    if !recent_candidates.is_empty() {
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(tl!("Recent PDFs")).font(theme::semibold(13.0)));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if crate::icons::button(ui, "layout-grid", 20.0, app.recent_grid, tl!("Grid view")).clicked() {
+                    app.recent_grid = true;
+                }
+                if crate::icons::button(ui, "list", 20.0, !app.recent_grid, tl!("List view")).clicked() {
+                    app.recent_grid = false;
+                }
+            });
+        });
+        ui.add_space(4.0);
+        let mut pick_recent = None;
+        if app.recent_grid {
+            let gap = 8.0;
+            let width = ((ui.available_width() - gap) / 2.0).max(120.0);
+            for pair in recent_candidates.chunks(2) {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(gap, gap);
+                    for r in pair {
+                        let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, 64.0), egui::Sense::click());
+                        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, r.name.clone()));
+                        let fill = if resp.hovered() { t.hover } else { t.card };
+                        ui.painter().rect(rect, egui::CornerRadius::same(8), fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                        crate::icons::paint(
+                            ui,
+                            egui::Rect::from_min_size(rect.min + egui::vec2(8.0, 8.0), egui::vec2(18.0, 18.0)),
+                            "file-text",
+                            16.0,
+                            t.accent,
+                        );
+                        crate::widgets::paint_left(
+                            ui,
+                            rect.min + egui::vec2(32.0, 8.0),
+                            &r.name,
+                            theme::medium(11.5),
+                            t.text,
+                            (width - 40.0).max(1.0),
+                        );
+                        ui.painter().text(
+                            rect.left_bottom() + egui::vec2(8.0, -10.0),
+                            egui::Align2::LEFT_BOTTOM,
+                            format!("{} pages", r.pages),
+                            theme::regular(10.0),
+                            t.text_muted,
+                        );
+                        if resp.clicked() {
+                            pick_recent = Some(r.path.clone());
+                        }
+                    }
+                });
+            }
+        } else {
+            for r in &recent_candidates {
+                let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 34.0), egui::Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, r.name.clone()));
+                let fill = if resp.hovered() { t.hover } else { t.card };
+                ui.painter().rect(rect, egui::CornerRadius::same(6), fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                crate::icons::paint(
+                    ui,
+                    egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), egui::vec2(16.0, 16.0)),
+                    "file-text",
+                    15.0,
+                    t.accent,
+                );
+                crate::widgets::paint_left(
+                    ui,
+                    rect.min + egui::vec2(34.0, 9.0),
+                    &r.name,
+                    theme::medium(11.5),
+                    t.text,
+                    (ui.available_width() - 80.0).max(1.0),
+                );
+                ui.painter().text(
+                    rect.right_center() - egui::vec2(10.0, 0.0),
+                    egui::Align2::RIGHT_CENTER,
+                    format!("{} p", r.pages),
+                    theme::regular(10.0),
+                    t.text_muted,
+                );
+                if resp.clicked() {
+                    pick_recent = Some(r.path.clone());
+                }
+            }
+        }
+        if let Some(path) = pick_recent {
+            app.split_after_open = true;
+            req.close = true;
+            app.open_recent(&path);
+            return;
+        }
+    }
     ui.add_space(8.0);
     if ui.button(tl!("Open another PDF…")).clicked() {
         app.split_after_open = true;
@@ -1751,12 +1849,11 @@ fn dialog_pin_tool(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending) 
         let mut toggle = None;
         for g in pdfcraft_engine::catalog::TOOL_GROUPS {
             let label = tl!(g.label);
-            let blurb = g.sections.first().map(|s| s.items.iter().take(4).map(|i| tl!(i.label)).collect::<Vec<_>>().join(" • ")).unwrap_or_default();
-            if !query.is_empty()
-                && !label.to_lowercase().contains(&query)
-                && !blurb.to_lowercase().contains(&query)
-                && !g.id.to_lowercase().contains(&query)
-            {
+            let blurb = g.sections.iter().flat_map(|s| s.items.iter().map(|i| tl!(i.label))).collect::<Vec<_>>().join(" • ");
+            let matches_item = g.sections.iter().flat_map(|s| s.items.iter()).any(|i| {
+                i.label.to_lowercase().contains(&query) || tl!(i.label).to_lowercase().contains(&query) || i.command.to_lowercase().contains(&query)
+            });
+            if !query.is_empty() && !label.to_lowercase().contains(&query) && !matches_item && !g.id.to_lowercase().contains(&query) {
                 continue;
             }
 

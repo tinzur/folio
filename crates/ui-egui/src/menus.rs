@@ -508,6 +508,7 @@ impl PdfCraftApp {
             "view.theme.system" => Some(self.theme_preference == ThemePreference::System),
             "view.theme.light" => Some(self.theme_preference == ThemePreference::Light),
             "view.theme.dark" => Some(self.theme_preference == ThemePreference::Dark),
+            "view.theme.sepia" => Some(self.theme_preference == ThemePreference::Sepia),
             "view.monochrome" => Some(self.monochrome),
             PANEL => Some(panel(command).is_some_and(|p| self.right == Some(p))),
             _ => None,

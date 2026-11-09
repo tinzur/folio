@@ -79,6 +79,34 @@ pub(crate) fn context_menu(
                         })));
                         ui.close();
                     }
+                    ui.add_space(4.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    let mut pct = 80.0;
+                    let opacity_lbl = ui.label(egui::RichText::new(tl!("Opacity")).strong());
+                    if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).labelled_by(opacity_lbl.id).changed() {
+                        action = Some(CanvasAction::Edit(Box::new(Edit::StyleAnnotation {
+                            page,
+                            index,
+                            color: None,
+                            opacity: Some(pct / 100.0),
+                            width: None,
+                            endings: None,
+                        })));
+                    }
+                    ui.add_space(4.0);
+                    let mut w = 2.0;
+                    let width_lbl = ui.label(egui::RichText::new(tl!("Line thickness")).strong());
+                    if ui.add(egui::Slider::new(&mut w, 0.5..=24.0).step_by(0.5).suffix(" pt").trailing_fill(true)).labelled_by(width_lbl.id).changed() {
+                        action = Some(CanvasAction::Edit(Box::new(Edit::StyleAnnotation {
+                            page,
+                            index,
+                            color: None,
+                            opacity: None,
+                            width: Some(w),
+                            endings: None,
+                        })));
+                    }
                 });
             });
             let thread: Vec<&pdfcraft_render::Annotation> = info.annotations.iter().filter(|r| r.replies_to(a)).collect();
@@ -286,10 +314,23 @@ pub fn fill_picker(ui: &mut egui::Ui, current: Option<Rgb>) -> Option<Option<Rgb
     picked
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct ToolStyleChange {
+    pub color: Option<Rgb>,
+    pub opacity: Option<f64>,
+    pub width: Option<f64>,
+}
+
+impl ToolStyleChange {
+    pub fn is_empty(&self) -> bool {
+        self.color.is_none() && self.opacity.is_none() && self.width.is_none()
+    }
+}
+
 /// The comment tools' extra quick-bar controls: pin, colour, fill, opacity and thickness.
-pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &mut CommentPrefs) -> Option<Rgb> {
+pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &mut CommentPrefs) -> Option<ToolStyleChange> {
     let style = prefs.style(tool);
-    let mut selected_color = None;
+    let mut change = ToolStyleChange::default();
     if icons::button(ui, "pin", 32.0, prefs.pinned, if prefs.pinned { tl!("Keep tool selected: on") } else { tl!("Keep tool selected") }).clicked() {
         prefs.pinned = !prefs.pinned;
     }
@@ -297,12 +338,38 @@ pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &m
     ui.painter().circle_filled(r.center(), 9.0, color32(style.color));
     ui.painter().circle_stroke(r.center(), 9.0, Stroke::new(1.0, Color32::from_black_alpha(50)));
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Colour")));
-    let resp = resp.on_hover_text(tl!("Colour"));
+    let resp = resp.on_hover_text(tl!("Colour and style"));
     egui::Popup::menu(&resp).align(egui::RectAlign::RIGHT_START).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+        ui.set_min_width(200.0);
         if let Some(c) = swatch_grid(ui, Some(style.color)) {
             prefs.set_color(tool, c);
-            selected_color = Some(c);
+            change.color = Some(c);
             ui.close();
+        }
+        ui.add_space(4.0);
+        ui.separator();
+        ui.add_space(4.0);
+        let mut percent = (style.opacity * 100.0).round();
+        let opacity_label = ui.label(egui::RichText::new(tl!("Opacity")).strong());
+        if ui.add(egui::Slider::new(&mut percent, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).labelled_by(opacity_label.id).changed() {
+            let o = percent / 100.0;
+            prefs.set_opacity(tool, o);
+            change.opacity = Some(o);
+        }
+        if tool.has_width() {
+            ui.add_space(4.0);
+            ui.separator();
+            ui.add_space(4.0);
+            let mut w = style.width;
+            let width_label = ui.label(egui::RichText::new(tl!("Line thickness")).strong());
+            if ui
+                .add(egui::Slider::new(&mut w, tool.min_width()..=super::MAX_LINE_WIDTH).step_by(0.5).suffix(" pt").trailing_fill(true))
+                .labelled_by(width_label.id)
+                .changed()
+            {
+                prefs.set_width(tool, w);
+                change.width = Some(w);
+            }
         }
     });
     if tool.has_fill() {
@@ -320,8 +387,10 @@ pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &m
         ui.set_min_width(180.0);
         let mut percent = (style.opacity * 100.0).round();
         ui.label(egui::RichText::new(tl!("Opacity")).font(theme::semibold(12.0)));
-        if ui.add(egui::Slider::new(&mut percent, 10.0..=100.0).step_by(5.0).suffix(" %")).changed() {
-            prefs.set_opacity(tool, percent / 100.0);
+        if ui.add(egui::Slider::new(&mut percent, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).changed() {
+            let o = percent / 100.0;
+            prefs.set_opacity(tool, o);
+            change.opacity = Some(o);
         }
     });
     if tool.has_width() {
@@ -330,12 +399,13 @@ pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &m
             ui.set_min_width(180.0);
             let mut w = style.width;
             ui.label(egui::RichText::new(tl!("Line thickness")).font(theme::semibold(12.0)));
-            if ui.add(egui::Slider::new(&mut w, tool.min_width()..=super::MAX_LINE_WIDTH).step_by(0.5).suffix(" pt")).changed() {
+            if ui.add(egui::Slider::new(&mut w, tool.min_width()..=super::MAX_LINE_WIDTH).step_by(0.5).suffix(" pt").trailing_fill(true)).changed() {
                 prefs.set_width(tool, w);
+                change.width = Some(w);
             }
         });
     }
-    selected_color
+    if change.is_empty() { None } else { Some(change) }
 }
 
 /// The quick bar's fill button: a filled square in the fill colour, or a crossed-out outline

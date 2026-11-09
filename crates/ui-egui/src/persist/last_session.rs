@@ -9,12 +9,23 @@ use crate::PdfCraftApp;
 /// More files than anyone keeps open. Settings are untrusted, so a longer list is cut here.
 pub const MAX_FILES: usize = 64;
 
+/// Preserved split-view layout and document paths.
+#[derive(Clone, Debug, PartialEq, Serialize, serde::Deserialize)]
+pub struct SplitSession {
+    pub left: String,
+    pub right: String,
+    pub ratio: f32,
+    pub scroll_lock: bool,
+}
+
 /// The files open when PdfCraft last closed.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct LastSession {
     pub files: Vec<SessionFile>,
     /// The path of the tab that was active.
     pub active: Option<String>,
+    /// The split view session if two documents were open side-by-side.
+    pub split: Option<SplitSession>,
 }
 
 /// One open file and where the reader was in it.
@@ -45,7 +56,14 @@ impl LastSession {
                     .collect()
             })
             .unwrap_or_default();
-        Self { files, active: v["active"].as_str().map(str::to_string) }
+        let split = v.get("split").and_then(|s| {
+            let left = s["left"].as_str()?.to_string();
+            let right = s["right"].as_str()?.to_string();
+            let ratio = s["ratio"].as_f64().map(|r| r as f32).unwrap_or(0.5).clamp(0.2, 0.8);
+            let scroll_lock = s["scroll_lock"].as_bool().unwrap_or(false);
+            Some(SplitSession { left, right, ratio, scroll_lock })
+        });
+        Self { files, active: v["active"].as_str().map(str::to_string), split }
     }
 }
 
@@ -65,7 +83,14 @@ impl PdfCraftApp {
             let path = |v: &crate::DocView| self.session.get(v.id).and_then(|d| d.path.as_deref()).map(absolute);
             let files = self.views.iter().filter_map(|v| Some(SessionFile { path: path(v)?, page: v.current })).take(MAX_FILES).collect();
             let active = self.active.and_then(|i| self.views.get(i)).and_then(path);
-            LastSession { files, active }
+            let split = self.split.or(self.split_saved).and_then(|s| {
+                let left_v = self.views.iter().find(|v| v.id == s.left)?;
+                let right_v = self.views.iter().find(|v| v.id == s.right)?;
+                let left = path(left_v)?;
+                let right = path(right_v)?;
+                Some(SplitSession { left, right, ratio: s.ratio, scroll_lock: s.scroll_lock })
+            });
+            LastSession { files, active, split }
         }
         #[cfg(target_arch = "wasm32")]
         LastSession::default()
@@ -131,6 +156,23 @@ impl PdfCraftApp {
             self.password_prompt = prompt;
             if active.is_some() {
                 self.active = active;
+            }
+            if let Some(split) = last.split {
+                let find_id = |path: &str| {
+                    self.views
+                        .iter()
+                        .find(|v| self.session.get(v.id).and_then(|d| d.path.as_deref()).map(absolute).as_deref() == Some(path))
+                        .map(|v| v.id)
+                };
+                if let (Some(left_id), Some(right_id)) = (find_id(&split.left), find_id(&split.right)) {
+                    self.split = Some(crate::SplitView {
+                        left: left_id,
+                        right: right_id,
+                        ratio: split.ratio,
+                        focus: crate::SplitSide::Left,
+                        scroll_lock: split.scroll_lock,
+                    });
+                }
             }
         }
         #[cfg(target_arch = "wasm32")]

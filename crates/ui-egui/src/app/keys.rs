@@ -41,6 +41,12 @@ impl PdfCraftApp {
             self.set_full_screen(ctx, false);
         }
         if let Some(i) = self.active {
+            if self.dialog.is_none()
+                && !self.palette_open
+                && ctx.input_mut(|input| input.consume_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::F)))
+            {
+                self.views[i].open_find();
+            }
             // Select all belongs to the document or page grid, unless a text field or
             // overlay owns the keyboard. Other canvas shortcuts keep their own handling.
             let pages_owns_keyboard =

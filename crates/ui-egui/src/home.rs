@@ -29,8 +29,8 @@ fn section_label(ui: &mut egui::Ui, text: &str, t: &Tokens) {
 pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let column = ui.available_width().clamp(280.0, 760.0);
-        let side = ((ui.available_width() - column) / 2.0).max(20.0);
+        let column = ui.available_width().clamp(320.0, 1160.0);
+        let side = ((ui.available_width() - column) / 2.0).max(24.0);
         ui.add_space(30.0);
         ui.horizontal(|ui| {
             ui.add_space(side);
@@ -145,44 +145,186 @@ fn quick_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
 }
 
 fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    if !app.home_show_pinned || (app.pinned_tools.is_empty() && app.pinned.folders.is_empty()) {
+    if !app.home_show_pinned || (app.pinned_tools.is_empty() && app.pinned.folders.is_empty() && app.pinned_files.is_empty()) {
         return;
     }
-    if !app.pinned_tools.is_empty() {
+    ui.horizontal(|ui| {
         section_label(ui, tl!("Pinned"), t);
-        let pinned = app.pinned_tools.clone();
-        let mut unpin = None;
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-            for id in pinned {
-                let Some(g) = catalog::group(&id) else { continue };
-                let label = tl!(g.label);
-                let text_width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), theme::medium(12.0), t.text).size().x);
-                // A fixed card width is what makes horizontal_wrapped reflow; a Frame around a
-                // child horizontal can claim the full remaining width and run off the page.
-                let width = (text_width + 58.0).clamp(112.0, ui.available_width().max(112.0));
-                let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
-                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
-                let fill = if resp.hovered() { t.hover } else { t.card };
-                ui.painter().rect(rect, CornerRadius::same(14), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-                icons::paint(ui, Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0)), g.icon, 15.0, t.accent);
-                widgets::row_text(ui, rect.min + vec2(31.0, 7.5), label, theme::medium(11.5), t.text, (width - 52.0).max(1.0));
-                let x_rect = Rect::from_center_size(rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
-                let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool", &id)), Sense::click());
-                x.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Unpin {label}")));
-                if x.hovered() {
-                    ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
-                }
-                icons::paint(ui, x_rect.shrink(6.0), "x", 12.0, t.icon);
-                if x.on_hover_text(tl!("Unpin from Home")).clicked() {
-                    unpin = Some(g.id.to_string());
-                } else if resp.clicked() {
-                    app.select_tool(g.id);
-                }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if icons::button(ui, "layout-grid", 24.0, app.pinned_grid, tl!("Grid view")).clicked() {
+                app.pinned_grid = true;
+            }
+            if icons::button(ui, "list", 24.0, !app.pinned_grid, tl!("List view")).clicked() {
+                app.pinned_grid = false;
             }
         });
+    });
+
+    if !app.pinned_tools.is_empty() {
+        let pinned = app.pinned_tools.clone();
+        let mut unpin = None;
+        if app.pinned_grid {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+                for id in pinned {
+                    let Some(g) = catalog::group(&id) else { continue };
+                    let label = tl!(g.label);
+                    let card_w = 126.0;
+                    let card_h = 76.0;
+                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+                    let hovered = ui.rect_contains_pointer(rect);
+                    let fill = if resp.hovered() { t.hover } else { t.card };
+                    ui.painter().rect(rect, CornerRadius::same(10), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    icons::paint(
+                        ui,
+                        Rect::from_center_size(egui::pos2(rect.min.x + 24.0, rect.min.y + 24.0), vec2(22.0, 22.0)),
+                        g.icon,
+                        20.0,
+                        t.accent,
+                    );
+                    widgets::row_text(ui, egui::pos2(rect.min.x + 12.0, rect.min.y + 50.0), label, theme::medium(11.5), t.text, card_w - 24.0);
+                    if hovered {
+                        let x_rect = Rect::from_center_size(rect.right_top() + vec2(-14.0, 14.0), vec2(20.0, 20.0));
+                        let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool-grid", &id)), Sense::click());
+                        if x.hovered() {
+                            ui.painter().rect_filled(x_rect, CornerRadius::same(5), t.pressed);
+                        }
+                        icons::paint(ui, x_rect.shrink(4.0), "x", 12.0, t.icon);
+                        if x.on_hover_text(tl!("Unpin from Home")).clicked() {
+                            unpin = Some(g.id.to_string());
+                        }
+                    }
+                    if resp.clicked() {
+                        app.select_tool(g.id);
+                    }
+                }
+            });
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                for id in pinned {
+                    let Some(g) = catalog::group(&id) else { continue };
+                    let label = tl!(g.label);
+                    let text_width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), theme::medium(12.0), t.text).size().x);
+                    let width = (text_width + 58.0).clamp(112.0, ui.available_width().max(112.0));
+                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+                    let fill = if resp.hovered() { t.hover } else { t.card };
+                    ui.painter().rect(rect, CornerRadius::same(14), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    icons::paint(
+                        ui,
+                        Rect::from_center_size(egui::pos2(rect.min.x + 18.0, rect.center().y), vec2(16.0, 16.0)),
+                        g.icon,
+                        15.0,
+                        t.accent,
+                    );
+                    widgets::row_text(
+                        ui,
+                        egui::pos2(rect.min.x + 31.0, rect.center().y),
+                        label,
+                        theme::medium(11.5),
+                        t.text,
+                        (width - 52.0).max(1.0),
+                    );
+                    let x_rect = Rect::from_center_size(rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
+                    let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool", &id)), Sense::click());
+                    x.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Unpin {label}")));
+                    if x.hovered() {
+                        ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
+                    }
+                    icons::paint(ui, x_rect.shrink(6.0), "x", 12.0, t.icon);
+                    if x.on_hover_text(tl!("Unpin from Home")).clicked() {
+                        unpin = Some(g.id.to_string());
+                    } else if resp.clicked() {
+                        app.select_tool(g.id);
+                    }
+                }
+            });
+        }
         if let Some(id) = unpin {
             app.unpin_tool(&id);
+        }
+    }
+    if !app.pinned_files.is_empty() {
+        ui.add_space(8.0);
+        let pinned_files = app.pinned_files.clone();
+        let mut unpin_file = None;
+        let mut open_file = None;
+        if app.pinned_grid {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+                for path in pinned_files {
+                    let name = std::path::Path::new(&path).file_name().and_then(|n| n.to_str()).unwrap_or(&path);
+                    let card_w = 120.0;
+                    let card_h = 135.0;
+                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
+                    let press = theme::Press::track(ui, &resp);
+                    let hovered = ui.rect_contains_pointer(rect);
+                    let fill = press.fill(t.card, t.hover, t.pressed);
+                    ui.painter().rect(rect, CornerRadius::same(8), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    let preview = Rect::from_min_size(rect.min + vec2(12.0, 10.0), vec2(card_w - 24.0, 80.0));
+                    ui.painter().rect_filled(preview, CornerRadius::same(4), t.pasteboard);
+                    icons::paint(ui, Rect::from_center_size(preview.center(), vec2(28.0, 28.0)), "file-text", 28.0, t.accent);
+
+                    if hovered {
+                        let x_rect = Rect::from_center_size(rect.right_top() + vec2(-12.0, 12.0), vec2(20.0, 20.0));
+                        let x = ui.interact(x_rect, ui.scope_id().with(("unpin-file-grid", &path)), Sense::click());
+                        if x.hovered() {
+                            ui.painter().rect_filled(x_rect, CornerRadius::same(4), t.pressed);
+                        }
+                        icons::paint(ui, x_rect.shrink(4.0), "x", 12.0, t.icon);
+                        if x.on_hover_text(tl!("Unpin from Home")).clicked() {
+                            unpin_file = Some(path.clone());
+                        }
+                    }
+
+                    widgets::row_text(ui, egui::pos2(rect.min.x + 8.0, rect.min.y + 104.0), name, theme::medium(11.5), t.text, card_w - 16.0);
+
+                    if theme::hand(resp).on_hover_text(&path).clicked() {
+                        open_file = Some(path.clone());
+                    }
+                }
+            });
+        } else {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
+                for path in pinned_files {
+                    let name = std::path::Path::new(&path).file_name().and_then(|n| n.to_str()).unwrap_or(&path);
+                    let text_width = ui.fonts_mut(|f| f.layout_no_wrap(name.to_owned(), theme::medium(12.0), t.text).size().x);
+                    let width = (text_width + 58.0).clamp(120.0, ui.available_width().max(120.0));
+                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, name));
+                    let fill = if resp.hovered() { t.hover } else { t.card };
+                    ui.painter().rect(rect, CornerRadius::same(14), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    icons::paint(
+                        ui,
+                        Rect::from_center_size(egui::pos2(rect.min.x + 18.0, rect.center().y), vec2(16.0, 16.0)),
+                        "file-text",
+                        15.0,
+                        t.accent,
+                    );
+                    widgets::row_text(ui, egui::pos2(rect.min.x + 31.0, rect.center().y), name, theme::medium(11.5), t.text, (width - 52.0).max(1.0));
+                    let x_rect = Rect::from_center_size(rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
+                    let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-file", &path)), Sense::click());
+                    if x.hovered() {
+                        ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
+                    }
+                    icons::paint(ui, x_rect.shrink(6.0), "x", 12.0, t.icon);
+                    if x.on_hover_text(tl!("Unpin from Home")).clicked() {
+                        unpin_file = Some(path.clone());
+                    } else if resp.clicked() {
+                        open_file = Some(path.clone());
+                    }
+                }
+            });
+        }
+        if let Some(path) = unpin_file {
+            app.unpin_file(&path);
+        }
+        if let Some(path) = open_file {
+            app.open_recent(&path);
         }
     }
     if !app.pinned.folders.is_empty() {
@@ -190,35 +332,111 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     }
 }
 
-fn recent(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
-    if !app.home_show_recent || app.recent_limit == 0 {
-        return;
-    }
-    let mut clear = false;
-    section_label(ui, tl!("Recent"), t);
-    if !app.recent.is_empty() {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if widgets::ghost_button(ui, "trash-2", tl!("Clear")).clicked() {
-                clear = true;
-            }
-        });
-    }
-    if app.recent.is_empty() {
+fn recent_incognito_card(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    ui.vertical_centered(|ui| {
+        ui.add_space(24.0);
+        let (icon_rect, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
+        ui.painter().circle_filled(icon_rect.center(), 22.0, t.card);
+        icons::paint(ui, icon_rect.shrink(10.0), "eye-off", 22.0, t.text_muted);
+        ui.add_space(8.0);
+        ui.label(egui::RichText::new(tl!("You've gone Incognito")).font(theme::semibold(14.0)).color(t.text));
+        ui.add_space(2.0);
         ui.label(
-            egui::RichText::new(format!("Files you open in {APP_NAME} appear here. Drop a PDF anywhere to open it."))
-                .font(theme::regular(12.5))
-                .color(t.text_muted),
+            egui::RichText::new(tl!("The history of the files you have viewed will not be saved.")).font(theme::regular(12.0)).color(t.text_muted),
         );
-    }
-    let mut open = None;
-    let mut remove = None;
+        ui.add_space(12.0);
+        if ui.add(egui::Button::new(tl!("Close")).min_size(vec2(80.0, 28.0))).clicked() {
+            app.incognito = false;
+        }
+        ui.add_space(24.0);
+    });
+}
+
+fn recent_grid_view(
+    app: &PdfCraftApp,
+    ui: &mut egui::Ui,
+    t: &Tokens,
+    open: &mut Option<String>,
+    remove: &mut Option<String>,
+    toggle_pin: &mut Option<String>,
+) {
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+        for r in app.recent.iter().take(app.recent_limit) {
+            let card_w = 120.0;
+            let card_h = 135.0;
+            let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
+            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &r.name));
+            let press = theme::Press::track(ui, &resp);
+            let hovered = ui.rect_contains_pointer(rect);
+            let fill = press.fill(t.card, t.hover, t.pressed);
+            ui.painter().rect(rect, CornerRadius::same(8), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            let preview = Rect::from_min_size(rect.min + vec2(12.0, 10.0), vec2(card_w - 24.0, 80.0));
+            ui.painter().rect_filled(preview, CornerRadius::same(4), t.pasteboard);
+            icons::paint(ui, Rect::from_center_size(preview.center(), vec2(28.0, 28.0)), "file-text", 28.0, t.icon);
+
+            if hovered || app.is_file_pinned(&r.path) {
+                let is_pinned = app.is_file_pinned(&r.path);
+                let pin_rect = Rect::from_center_size(rect.right_top() + vec2(-34.0, 12.0), vec2(20.0, 20.0));
+                let pin_btn = ui.interact(pin_rect, ui.scope_id().with(("pin-recent-grid", &r.path)), Sense::click());
+                if pin_btn.hovered() {
+                    ui.painter().rect_filled(pin_rect, CornerRadius::same(4), t.pressed);
+                }
+                icons::paint(ui, pin_rect.shrink(4.0), "pin", 12.0, if is_pinned { t.accent } else { t.icon });
+                let tip = if is_pinned { tl!("Unpin from Home") } else { tl!("Pin to Home") };
+                if pin_btn.on_hover_text(tip).clicked() {
+                    *toggle_pin = Some(r.path.clone());
+                }
+
+                let x_rect = Rect::from_center_size(rect.right_top() + vec2(-12.0, 12.0), vec2(20.0, 20.0));
+                let x = ui.interact(x_rect, ui.scope_id().with(("remove-recent-grid", &r.path)), Sense::click());
+                if x.hovered() {
+                    ui.painter().rect_filled(x_rect, CornerRadius::same(4), t.pressed);
+                }
+                icons::paint(ui, x_rect.shrink(4.0), "x", 12.0, t.icon);
+                if x.on_hover_text(tl!("Remove from Recent")).clicked() {
+                    *remove = Some(r.path.clone());
+                }
+            }
+
+            widgets::row_text(ui, egui::pos2(rect.min.x + 8.0, rect.min.y + 104.0), r.name.as_str(), theme::medium(11.5), t.text, card_w - 16.0);
+            let pages = format!("{}  ·  {}", crate::i18n::trn(crate::i18n::current(), r.pages as u64, "{n} page", "{n} pages"), human_size(r.size));
+            widgets::row_text(ui, egui::pos2(rect.min.x + 8.0, rect.min.y + 120.0), pages, theme::regular(10.0), t.text_muted, card_w - 16.0);
+
+            if theme::hand(resp).on_hover_text(&r.path).clicked() {
+                *open = Some(r.path.clone());
+            }
+        }
+    });
+}
+
+fn recent_list_view(
+    app: &PdfCraftApp,
+    ui: &mut egui::Ui,
+    t: &Tokens,
+    open: &mut Option<String>,
+    remove: &mut Option<String>,
+    toggle_pin: &mut Option<String>,
+) {
     for r in app.recent.iter().take(app.recent_limit) {
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 48.0), Sense::click());
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &r.name));
         let press = theme::Press::track(ui, &resp);
         let hovered = ui.rect_contains_pointer(rect);
         press.wash(ui, rect, 8, false);
-        if hovered {
+        if hovered || app.is_file_pinned(&r.path) {
+            let is_pinned = app.is_file_pinned(&r.path);
+            let pin_rect = Rect::from_center_size(rect.right_center() - vec2(58.0, 0.0), vec2(28.0, 28.0));
+            let pin_btn = ui.interact(pin_rect, ui.scope_id().with(("pin-recent", &r.path)), Sense::click());
+            if pin_btn.hovered() {
+                ui.painter().rect_filled(pin_rect, CornerRadius::same(6), t.pressed);
+            }
+            icons::paint(ui, pin_rect.shrink(6.0), "pin", 16.0, if is_pinned { t.accent } else { t.icon });
+            let tip = if is_pinned { tl!("Unpin from Home") } else { tl!("Pin to Home") };
+            if pin_btn.on_hover_text(tip).clicked() {
+                *toggle_pin = Some(r.path.clone());
+            }
+
             let x_rect = Rect::from_center_size(rect.right_center() - vec2(26.0, 0.0), vec2(28.0, 28.0));
             let x = ui.interact(x_rect, ui.scope_id().with(("remove-recent", &r.path)), Sense::click());
             let label = crate::i18n::fmt(tl!("Remove {name} from Recent"), &[("name", &r.name)]);
@@ -228,13 +446,13 @@ fn recent(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
             }
             icons::paint(ui, x_rect.shrink(6.0), "x", 16.0, t.icon);
             if x.on_hover_text(tl!("Remove from Recent")).clicked() {
-                remove = Some(r.path.clone());
+                *remove = Some(r.path.clone());
             }
         }
         let body = rect.translate(press.offset());
         icons::paint(ui, Rect::from_min_size(body.min + vec2(10.0, 12.0), vec2(22.0, 22.0)), "file-text", 20.0, t.icon);
         let detail = ui.painter().text(
-            body.right_center() - vec2(48.0, 0.0),
+            body.right_center() - vec2(78.0, 0.0),
             Align2::RIGHT_CENTER,
             format!("{}  ·  {}", crate::i18n::trn(crate::i18n::current(), r.pages as u64, "{n} page", "{n} pages"), human_size(r.size)),
             theme::regular(11.5),
@@ -244,14 +462,63 @@ fn recent(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         widgets::row_text(ui, body.min + vec2(44.0, 16.0), r.name.as_str(), theme::medium(13.0), t.text, width);
         widgets::row_text(ui, body.min + vec2(44.0, 33.0), r.path.as_str(), theme::regular(10.8), t.text_faint, width);
         if theme::hand(resp).on_hover_text(&r.path).clicked() {
-            open = Some(r.path.clone());
+            *open = Some(r.path.clone());
         }
+    }
+}
+
+fn recent(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
+    if !app.home_show_recent || app.recent_limit == 0 {
+        return;
+    }
+    let mut clear = false;
+    ui.horizontal(|ui| {
+        section_label(ui, tl!("Recent"), t);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if widgets::ghost_button(ui, "trash-2", tl!("Clear")).clicked() {
+                clear = true;
+            }
+            if icons::button(ui, "layout-grid", 24.0, app.recent_grid, tl!("Grid view")).clicked() {
+                app.recent_grid = true;
+            }
+            if icons::button(ui, "list", 24.0, !app.recent_grid, tl!("List view")).clicked() {
+                app.recent_grid = false;
+            }
+            if icons::button(ui, "eye-off", 24.0, app.incognito, tl!("Incognito mode")).clicked() {
+                app.incognito = !app.incognito;
+            }
+        });
+    });
+
+    if app.incognito {
+        recent_incognito_card(app, ui, t);
+        return;
+    }
+
+    if app.recent.is_empty() {
+        ui.label(
+            egui::RichText::new(format!("Files you open in {APP_NAME} appear here. Drop a PDF anywhere to open it."))
+                .font(theme::regular(12.5))
+                .color(t.text_muted),
+        );
+        return;
+    }
+    let mut open = None;
+    let mut remove = None;
+    let mut toggle_pin = None;
+    if app.recent_grid {
+        recent_grid_view(app, ui, t, &mut open, &mut remove, &mut toggle_pin);
+    } else {
+        recent_list_view(app, ui, t, &mut open, &mut remove, &mut toggle_pin);
     }
     if let Some(p) = open {
         app.open_recent(&p);
     }
     if let Some(p) = remove {
         app.recent.retain(|r| r.path != p);
+    }
+    if let Some(p) = toggle_pin {
+        app.toggle_pin_file(&p);
     }
     if clear {
         app.execute("file.clear_recent");

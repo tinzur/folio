@@ -364,7 +364,7 @@ fn active_tool_controls(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ve
         } else {
             ui.painter().vline(r.center().x, r.y_range().shrink(6.0), Stroke::new(1.0, t.divider));
         }
-        if let Some(color) = comments::quick_bar_controls(ui, tool, &mut app.comment_prefs)
+        if let Some(change) = comments::quick_bar_controls(ui, tool, &mut app.comment_prefs)
             && let Some((index, id)) = app.active_ids()
             && let Some((page, annotation)) = app.views.get(index).and_then(|view| view.comments.selected)
             && app.session.get(id).is_some_and(|doc| {
@@ -376,7 +376,14 @@ fn active_tool_controls(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ve
                         .any(|a| a.page == page && a.index == annotation && !a.is_reply() && !a.locked && comments::made_by(a, tool))
             })
         {
-            app.apply_edit(Edit::StyleAnnotation { page, index: annotation, color: Some(color), opacity: None, width: None, endings: None });
+            app.apply_edit(Edit::StyleAnnotation {
+                page,
+                index: annotation,
+                color: change.color,
+                opacity: change.opacity,
+                width: change.width,
+                endings: None,
+            });
         }
     }
 }
@@ -625,10 +632,21 @@ fn mac_inset(app: &PdfCraftApp) -> f32 {
 }
 
 pub(crate) fn strip_layout(app: &PdfCraftApp, width: f32) -> StripLayout {
+    if !app.strip_rows_auto {
+        if app.strip_rows == 2 {
+            return StripLayout { rows: 2, split: app.strip_tools.len().div_ceil(2) };
+        } else {
+            return StripLayout { rows: 1, split: app.strip_tools.len() };
+        }
+    }
+
     let cell = if app.hotbar.button_size.is_finite() { app.hotbar.button_size.clamp(22.0, 64.0) } else { 32.0 };
     let tiny = cell.min(26.0);
-    let controls = 7.0 * tiny + 92.0;
-    let frame = 20.0 + mac_inset(app) + (cell + 2.0) + controls + 12.0;
+    let reading = 10.0 * (tiny + 2.0) + 160.0;
+    let has_controls = matches!(app.quick_tool, QuickTool::Comment(_))
+        || matches!(app.quick_tool, QuickTool::Fill(crate::fill_sign::FillTool::Text | crate::fill_sign::FillTool::Date));
+    let left_bar = 4.0 * (cell + 2.0) + mac_inset(app) + 24.0 + if has_controls { 180.0 } else { 0.0 };
+    let frame = left_bar + reading;
     let select_hand = 2.0 * (cell + 2.0) + 8.0;
     let tool_width = |id: &str| cell + 2.0 + if id == "comment.ink" || id == "comment.square" { 8.0 } else { 0.0 };
     let tools_width: f32 = app.strip_tools.iter().map(|id| tool_width(id)).sum();
@@ -636,19 +654,16 @@ pub(crate) fn strip_layout(app: &PdfCraftApp, width: f32) -> StripLayout {
     let tail = 8.0 + (cell + 2.0) + if edit_text { cell + 2.0 } else { 0.0 };
     let customize = 8.0 + (cell + 2.0);
     let one_row = frame + select_hand + tools_width + tail + customize + 8.0;
-    let max_rows = if app.strip_rows_auto { 2 } else { app.strip_rows.clamp(1, 2) };
-    if max_rows == 1 || one_row <= width {
+    if one_row <= width {
         return StripLayout { rows: 1, split: app.strip_tools.len() };
     }
-    if !app.strip_rows_auto {
-        return StripLayout { rows: 2, split: app.strip_tools.len().div_ceil(2) };
-    }
     // Automatic: fill the first row with the tools that fit, and wrap the rest to the second.
-    let mut used = frame + select_hand;
+    let available_for_tools = (width - frame - select_hand - tail - customize).max(0.0);
+    let mut used = 0.0;
     let mut split = 0;
     for id in &app.strip_tools {
         let w = tool_width(id);
-        if used + w > width {
+        if used + w > available_for_tools {
             break;
         }
         used += w;
@@ -687,6 +702,33 @@ fn strip_buttons(ui: &mut egui::Ui, app: &mut PdfCraftApp, cell: f32, t: &Tokens
         ui.separator();
     }
     for id in tools {
+        if id == "view.rotate" {
+            let icon = if app.rotate_clockwise { "rotate-cw" } else { "rotate-ccw" };
+            let tip = if app.rotate_clockwise { tl!("Rotate view clockwise") } else { tl!("Rotate view counterclockwise") };
+            let resp = icons::button(ui, icon, cell, false, tip);
+            let mut do_rotate = None;
+            if resp.clicked() {
+                do_rotate = Some(app.rotate_clockwise);
+            }
+            resp.context_menu(|ui| {
+                if ui.button(tl!("Rotate View Right")).clicked() {
+                    app.rotate_clockwise = true;
+                    do_rotate = Some(true);
+                    ui.close();
+                }
+                if ui.button(tl!("Rotate View Left")).clicked() {
+                    app.rotate_clockwise = false;
+                    do_rotate = Some(false);
+                    ui.close();
+                }
+            });
+            if let Some(cw) = do_rotate
+                && let Some(i) = app.active
+            {
+                app.views[i].rotate_view(cw);
+            }
+            continue;
+        }
         let Some(spec) = pdfcraft_engine::commands::command(id) else { continue };
         if id == "comment.ink" || id == "comment.square" {
             ui.separator();
@@ -708,15 +750,47 @@ fn strip_buttons(ui: &mut egui::Ui, app: &mut PdfCraftApp, cell: f32, t: &Tokens
     }
 }
 
-/// Draw the annotation row: one or two full-width rows at the top of the document area, with the
-/// tools drawer's hamburger, the reader's own tools, the active tool's controls, and the compact
-/// reading controls (page, zoom, view, panels, settings) at the right of the first row.
+/// Draw the annotation row: one or two full-width rows at the top of the document area, or docked
+/// at the bottom, left, or right, with the tools drawer's hamburger, the reader's own tools, the
+/// active tool's controls, and the compact reading controls at the right (or bottom) of the row.
 pub(crate) fn strip(app: &mut PdfCraftApp, ctx: &egui::Context, rect: Rect) {
     let t = Tokens::get(ctx);
     let mut bar = std::mem::take(&mut app.hotbar);
     bar.normalize();
     let cell = bar.button_size.clamp(22.0, 64.0);
     app.hotbar = bar;
+    let dock = app.hotbar.dock.clone().unwrap_or_else(|| "top".to_owned());
+    let is_vertical = dock == "left" || dock == "right";
+
+    if is_vertical {
+        let shown = egui::Area::new(egui::Id::unique("annotation-strip"))
+            .order(egui::Order::Middle)
+            .fixed_pos(rect.min)
+            .show(ctx, |ui| {
+                ui.set_width(rect.width());
+                ui.set_max_height(rect.height());
+                ui.set_clip_rect(rect);
+                let frame = egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin { left: 4, right: 4, top: 8, bottom: 8 }).show(ui, |ui| {
+                    ui.set_width(rect.width() - 8.0);
+                    ui.set_height(rect.height() - 16.0);
+                    ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+                    let tools = app.strip_tools.clone();
+                    let cols = app.strip_rows_shown;
+                    strip_vertical_content(app, ui, cell, cell.min(26.0), &t, &tools, cols);
+                });
+                let bar_rect = frame.response.rect;
+                if dock == "left" {
+                    ui.painter().vline(bar_rect.right() - 0.5, bar_rect.y_range(), Stroke::new(1.0, t.divider));
+                } else {
+                    ui.painter().vline(bar_rect.left() + 0.5, bar_rect.y_range(), Stroke::new(1.0, t.divider));
+                }
+                bar_rect
+            })
+            .inner;
+        app.strip_rect = Some(shown);
+        return;
+    }
+
     let layout = strip_layout(app, rect.width());
     app.strip_rows_shown = layout.rows;
     let rows = layout.rows;
@@ -745,6 +819,13 @@ pub(crate) fn strip(app: &mut PdfCraftApp, ctx: &egui::Context, rect: Rect) {
                     if icons::button(ui, "align-justify", cell, app.drawer_open, tl!("Tools")).clicked() {
                         app.drawer_open = !app.drawer_open;
                         app.customizing_toolbar = false;
+                    }
+                    panels_button(app, ui, cell);
+                    if icons::button(ui, "undo-2", cell, false, tl!("Undo (⌘Z)")).clicked() {
+                        app.undo();
+                    }
+                    if icons::button(ui, "redo-2", cell, false, tl!("Redo (⇧⌘Z)")).clicked() {
+                        app.redo();
                     }
                     if has_controls {
                         active_tool_controls(ui, app, &t, false);
@@ -781,11 +862,131 @@ pub(crate) fn strip(app: &mut PdfCraftApp, ctx: &egui::Context, rect: Rect) {
                 }
             });
             let bar_rect = frame.response.rect;
-            ui.painter().hline(bar_rect.x_range(), bar_rect.bottom() - 0.5, Stroke::new(1.0, t.divider));
+            if dock == "bottom" {
+                ui.painter().hline(bar_rect.x_range(), bar_rect.top() + 0.5, Stroke::new(1.0, t.divider));
+            } else {
+                ui.painter().hline(bar_rect.x_range(), bar_rect.bottom() - 0.5, Stroke::new(1.0, t.divider));
+            }
             bar_rect
         })
         .inner;
     app.strip_rect = Some(shown);
+}
+
+fn strip_vertical_content(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32, tiny: f32, t: &Tokens, tools: &[String], cols: u8) {
+    ui.vertical_centered(|ui| {
+        if cols == 2 {
+            ui.horizontal(|ui| {
+                if icons::button(ui, "align-justify", cell, app.drawer_open, tl!("Tools")).clicked() {
+                    app.drawer_open = !app.drawer_open;
+                    app.customizing_toolbar = false;
+                }
+                panels_button(app, ui, cell);
+            });
+            ui.horizontal(|ui| {
+                if icons::button(ui, "undo-2", cell, false, tl!("Undo (⌘Z)")).clicked() {
+                    app.undo();
+                }
+                if icons::button(ui, "redo-2", cell, false, tl!("Redo (⇧⌘Z)")).clicked() {
+                    app.redo();
+                }
+            });
+        } else {
+            if icons::button(ui, "align-justify", cell, app.drawer_open, tl!("Tools")).clicked() {
+                app.drawer_open = !app.drawer_open;
+                app.customizing_toolbar = false;
+            }
+            panels_button(app, ui, cell);
+            if icons::button(ui, "undo-2", cell, false, tl!("Undo (⌘Z)")).clicked() {
+                app.undo();
+            }
+            if icons::button(ui, "redo-2", cell, false, tl!("Redo (⇧⌘Z)")).clicked() {
+                app.redo();
+            }
+        }
+
+        let has_controls = matches!(app.quick_tool, QuickTool::Comment(_))
+            || matches!(app.quick_tool, QuickTool::Fill(crate::fill_sign::FillTool::Text | crate::fill_sign::FillTool::Date));
+        if has_controls {
+            ui.separator();
+            active_tool_controls(ui, app, t, true);
+        }
+
+        ui.separator();
+        let scroll_h = (ui.available_height() - if cols == 2 { 4.0 * tiny + 32.0 } else { 7.0 * tiny + 32.0 }).max(cell);
+        egui::ScrollArea::vertical().id_salt("annotation-strip-v").max_height(scroll_h).show(ui, |ui| {
+            if cols == 2 {
+                let split = tools.len().div_ceil(2);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+                    ui.vertical(|ui| {
+                        strip_buttons(ui, app, cell, t, RowSpec { tools: &tools[..split], select_hand: true, tail: false, customize: false });
+                    });
+                    ui.vertical(|ui| {
+                        strip_buttons(ui, app, cell, t, RowSpec { tools: &tools[split..], select_hand: false, tail: true, customize: true });
+                    });
+                });
+            } else {
+                ui.vertical_centered(|ui| {
+                    strip_buttons(ui, app, cell, t, RowSpec { tools, select_hand: true, tail: true, customize: true });
+                });
+            }
+        });
+        ui.separator();
+        reading_controls_vertical(app, ui, tiny, cols);
+    });
+}
+
+fn dock_position_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
+    let resp = icons::button(ui, "move", cell, false, tl!("Toolbar position"));
+    egui::Popup::menu(&resp).align(egui::RectAlign::BOTTOM_START).show(|ui| {
+        ui.set_min_width(140.0);
+        let options = [(None, "Top"), (Some("bottom"), "Bottom"), (Some("left"), "Left"), (Some("right"), "Right")];
+        for (dock, label) in options {
+            let active = app.hotbar.dock.as_deref() == dock;
+            if ui.selectable_label(active, tl!(label)).clicked() {
+                app.hotbar.dock = dock.map(str::to_owned);
+                if let Some(side) = dock {
+                    let _ = app.hotbar.place(side);
+                }
+                ui.close();
+            }
+        }
+    });
+}
+
+fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32, cols: u8) {
+    if cols == 2 {
+        ui.horizontal(|ui| {
+            dock_position_button(app, ui, cell);
+            if icons::button(ui, "maximize", cell, false, tl!("Full Screen (⌘L)")).clicked() {
+                app.execute("view.full_screen");
+            }
+        });
+        ui.horizontal(|ui| {
+            if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
+                app.execute("app.preferences");
+            }
+            hscroll_lock_button(app, ui, cell);
+        });
+        ui.horizontal(|ui| {
+            view_button(app, ui, cell);
+            zoom_controls(app, ui, cell);
+        });
+        page_controls(app, ui, cell);
+    } else {
+        dock_position_button(app, ui, cell);
+        if icons::button(ui, "maximize", cell, false, tl!("Full Screen (⌘L)")).clicked() {
+            app.execute("view.full_screen");
+        }
+        if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
+            app.execute("app.preferences");
+        }
+        view_button(app, ui, cell);
+        zoom_controls(app, ui, cell);
+        hscroll_lock_button(app, ui, cell);
+        page_controls(app, ui, cell);
+    }
 }
 
 /// The reading controls at the right of the annotation row, added right to left: settings, panels,
@@ -793,10 +994,13 @@ pub(crate) fn strip(app: &mut PdfCraftApp, ctx: &egui::Context, rect: Rect) {
 fn reading_controls(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
     let spacing = ui.spacing().item_spacing;
     ui.spacing_mut().item_spacing.x = 0.0;
+    dock_position_button(app, ui, cell);
+    if icons::button(ui, "maximize", cell, false, tl!("Full Screen (⌘L)")).clicked() {
+        app.execute("view.full_screen");
+    }
     if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
         app.execute("app.preferences");
     }
-    panels_button(app, ui, cell);
     view_button(app, ui, cell);
     zoom_controls(app, ui, cell);
     hscroll_lock_button(app, ui, cell);
@@ -806,8 +1010,8 @@ fn reading_controls(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
 
 /// The panels the old rail switched between, as one menu. Choosing one docks its inspector.
 fn panels_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
-    let resp = icons::button(ui, "panel-right", cell, app.right.is_some(), tl!("Panels"));
-    egui::Popup::menu(&resp).align(egui::RectAlign::BOTTOM_END).show(|ui| {
+    let resp = icons::button(ui, "panel-left", cell, app.right.is_some(), tl!("Panels"));
+    egui::Popup::menu(&resp).align(egui::RectAlign::BOTTOM_START).show(|ui| {
         ui.set_min_width(190.0);
         let entries = [
             (crate::RightPanel::Comments, "Comments"),
@@ -853,20 +1057,41 @@ fn view_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
     let view = &mut app.views[index];
     let mut toggle_gaps = false;
     egui::Popup::menu(&resp).align(egui::RectAlign::BOTTOM_END).show(|ui| {
-        ui.set_min_width(200.0);
-        if ui.button(tl!("Fit to width scrolling")).clicked() {
-            view.fit = crate::canvas::Fit::Width;
-            view.goto = Some((view.current, 0.0));
+        ui.set_min_width(210.0);
+        let is_single_page = view.layout == crate::canvas::PageLayout::Single && !view.continuous;
+        let is_single_scroll = view.layout == crate::canvas::PageLayout::Single && view.continuous;
+        let is_two_page = view.layout == crate::canvas::PageLayout::TwoUp && !view.continuous;
+        let is_two_scroll = view.layout == crate::canvas::PageLayout::TwoUp && view.continuous;
+
+        if ui.add(crate::widgets::radio(is_single_page, tl!("Single page view"))).clicked() {
+            view.layout = crate::canvas::PageLayout::Single;
+            view.continuous = false;
             ui.close();
         }
-        if ui.button(tl!("Fit one full page")).clicked() {
-            view.fit = crate::canvas::Fit::Page;
-            view.goto = Some((view.current, 0.0));
+        if ui.add(crate::widgets::radio(is_single_scroll, tl!("Single page scrolling"))).clicked() {
+            view.layout = crate::canvas::PageLayout::Single;
+            view.continuous = true;
             ui.close();
         }
-        if ui.button(tl!("Actual size")).clicked() {
-            view.set_zoom(1.0);
+        if ui.add(crate::widgets::radio(is_two_page, tl!("Two-page view"))).clicked() {
+            view.layout = crate::canvas::PageLayout::TwoUp;
+            view.continuous = false;
             ui.close();
+        }
+        if ui.add(crate::widgets::radio(is_two_scroll, tl!("Two-page scrolling"))).clicked() {
+            view.layout = crate::canvas::PageLayout::TwoUp;
+            view.continuous = true;
+            ui.close();
+        }
+        ui.separator();
+        let mut cover = view.cover;
+        if ui.add_enabled(view.layout == crate::canvas::PageLayout::TwoUp, crate::widgets::checkbox(&mut cover, tl!("Separate cover page"))).changed()
+        {
+            view.cover = cover;
+        }
+        let mut gaps = view.show_page_gaps;
+        if ui.add(crate::widgets::checkbox(&mut gaps, tl!("Show gaps between pages"))).changed() {
+            toggle_gaps = true;
         }
         ui.separator();
         if ui.button(tl!("Rotate view clockwise")).clicked() {
@@ -888,21 +1113,6 @@ fn view_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
         let forward_tip = format!("{} ({})", tl!("Next view"), crate::commands::shortcut_label(ui.ctx(), crate::commands::NEXT_VIEW));
         if ui.add_enabled(can_forward, egui::Button::new(forward_tip)).clicked() {
             view.view_history(true);
-            ui.close();
-        }
-        ui.separator();
-        let mut gaps = view.show_page_gaps;
-        if ui.add(crate::widgets::checkbox(&mut gaps, tl!("Show gaps between pages"))).changed() {
-            toggle_gaps = true;
-        }
-        ui.separator();
-        let single = view.layout == crate::canvas::PageLayout::Single;
-        if ui.add(crate::widgets::radio(single, tl!("Single page"))).clicked() {
-            view.layout = crate::canvas::PageLayout::Single;
-            ui.close();
-        }
-        if ui.add(crate::widgets::radio(!single, tl!("Two-page view"))).clicked() {
-            view.layout = crate::canvas::PageLayout::TwoUp;
             ui.close();
         }
     });
@@ -958,16 +1168,25 @@ fn zoom_controls(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
             view.zoom_input = text;
         });
         ui.separator();
-        if ui.button(tl!("Fit to width")).clicked() {
-            view.set_fit(crate::canvas::Fit::Width);
+        if ui.button(tl!("Actual size")).clicked() {
+            view.set_zoom(1.0);
             ui.close();
         }
         if ui.button(tl!("Fit to page")).clicked() {
             view.set_fit(crate::canvas::Fit::Page);
             ui.close();
         }
+        if ui.button(tl!("Fit to width")).clicked() {
+            view.set_fit(crate::canvas::Fit::Width);
+            ui.close();
+        }
+        if ui.button(tl!("Fit to height")).clicked() {
+            view.set_fit(crate::canvas::Fit::Height);
+            ui.close();
+        }
         ui.separator();
-        for (label, zoom) in [("50%", 0.5), ("75%", 0.75), ("100%", 1.0), ("125%", 1.25), ("150%", 1.5), ("200%", 2.0)] {
+        for (label, zoom) in [("25%", 0.25), ("50%", 0.5), ("75%", 0.75), ("100%", 1.0), ("125%", 1.25), ("150%", 1.5), ("200%", 2.0), ("400%", 4.0)]
+        {
             if ui.button(label).clicked() {
                 view.set_zoom(zoom);
                 ui.close();

@@ -284,7 +284,7 @@ impl PdfCraftApp {
 /// The Home view's Folders section (desktop only: the web build has no folders to read).
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
-    use egui::{Align2, CornerRadius, Rect, Sense, vec2};
+    use egui::{Align2, CornerRadius, Rect, Sense, Stroke, vec2};
 
     use crate::theme::{self, Tokens};
     use crate::{icons, widgets};
@@ -292,12 +292,28 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     app.refresh_pinned(ui.input(|i| i.time));
     let mut pin = false;
+    let mut unpin_all = false;
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(tl!("Folders")).font(theme::semibold(17.0)));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             pin = widgets::ghost_button(ui, "folder-plus", tl!("Pin a folder…")).clicked();
+            if !app.pinned.folders.is_empty() && widgets::ghost_button(ui, "trash-2", tl!("Unpin all")).clicked() {
+                unpin_all = true;
+            }
+            if icons::button(ui, "layout-grid", 24.0, app.recent_grid, tl!("Grid view")).clicked() {
+                app.recent_grid = true;
+            }
+            if icons::button(ui, "list", 24.0, !app.recent_grid, tl!("List view")).clicked() {
+                app.recent_grid = false;
+            }
         });
     });
+    if unpin_all {
+        app.pinned.folders.clear();
+        app.pinned.listings.clear();
+        app.pinned.expanded.clear();
+        app.pinned.stale = true;
+    }
     ui.add_space(4.0);
     if app.pinned.folders.is_empty() {
         ui.label(
@@ -308,21 +324,27 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let mut open = None;
     let mut unpin = None;
     let mut toggle = None;
+    let mut reveal = None;
+    let reveal_tip = if cfg!(target_os = "macos") { tl!("Open in Finder") } else { tl!("Open in File Explorer") };
     for folder in &app.pinned.folders {
         let name = folder_name(folder);
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            let (icon, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
+            let (icon, icon_resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
             icons::paint(ui, icon, "folder", 20.0, t.icon);
-            // Folder names and paths are file/path chrome: explicitly left to right, so an
-            // Arabic location keeps its `.pdf`/extension at the visual end.
-            widgets::label_ltr(ui, name.clone(), theme::semibold(14.0), t.text).on_hover_text(folder);
+            let name_resp = widgets::label_ltr(ui, name.clone(), theme::semibold(14.0), t.text).on_hover_text(reveal_tip);
+            if icon_resp.clicked() || name_resp.interact(Sense::click()).clicked() {
+                reveal = Some(folder.clone());
+            }
             ui.add_space(4.0);
-            // Leave room for Unpin: a long location is cut short, never the button.
-            let room = (ui.available_width() - 110.0).max(0.0);
+            // Leave room for buttons: a long location is cut short, never the buttons.
+            let room = (ui.available_width() - 140.0).max(0.0);
             ui.scope(|ui| {
                 ui.set_max_width(room);
-                widgets::label_ltr(ui, location(folder), theme::regular(12.0), t.text_faint).on_hover_text(folder);
+                let loc_resp = widgets::label_ltr(ui, location(folder), theme::regular(12.0), t.text_faint).on_hover_text(reveal_tip);
+                if loc_resp.interact(Sense::click()).clicked() {
+                    reveal = Some(folder.clone());
+                }
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let resp = widgets::ghost_button(ui, "x", tl!("Unpin"));
@@ -331,6 +353,9 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
                 if resp.clicked() {
                     unpin = Some(folder.clone());
+                }
+                if widgets::ghost_button(ui, "external-link", reveal_tip).clicked() {
+                    reveal = Some(folder.clone());
                 }
             });
         });
@@ -352,27 +377,76 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         }
         let expanded = app.pinned.expanded.contains(folder);
         let shown = if expanded { listing.files.len() } else { listing.files.len().min(SHOWN) };
-        for f in listing.files.iter().take(shown) {
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
-            resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &f.name));
-            if resp.hovered() {
-                ui.painter().rect_filled(rect, CornerRadius::same(8), t.hover);
-            }
-            icons::paint(
-                ui,
-                Rect::from_min_size(rect.min + vec2(32.0, 9.0), vec2(20.0, 20.0)),
-                "file-text",
-                18.0,
-                egui::Color32::from_rgb(0xE0, 0x3E, 0x3E),
-            );
-            let size = crate::panels::human_size(usize::try_from(f.size).unwrap_or(usize::MAX));
-            let when = f.modified.map(crate::combine_ui::ago).unwrap_or_default();
-            let detail = if when.is_empty() { size } else { format!("{when}  ·  {size}") };
-            let detail = ui.painter().text(rect.right_center() - vec2(12.0, 0.0), Align2::RIGHT_CENTER, detail, theme::regular(12.0), t.text_muted);
-            let width = detail.left() - 16.0 - (rect.left() + 62.0);
-            widgets::row_text(ui, rect.min + vec2(62.0, 19.0), f.name.as_str(), theme::medium(13.0), t.text, width);
-            if resp.on_hover_text(&f.path).clicked() {
-                open = Some(f.path.clone());
+        if app.recent_grid {
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
+                for f in listing.files.iter().take(shown) {
+                    let card_w = 120.0;
+                    let card_h = 135.0;
+                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
+                    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &f.name));
+                    let press = theme::Press::track(ui, &resp);
+                    let fill = press.fill(t.card, t.hover, t.pressed);
+                    ui.painter().rect(rect, CornerRadius::same(8), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+                    let preview = Rect::from_min_size(rect.min + vec2(12.0, 10.0), vec2(card_w - 24.0, 80.0));
+                    ui.painter().rect_filled(preview, CornerRadius::same(4), t.pasteboard);
+                    icons::paint(
+                        ui,
+                        Rect::from_center_size(preview.center(), vec2(28.0, 28.0)),
+                        "file-text",
+                        28.0,
+                        egui::Color32::from_rgb(0xE0, 0x3E, 0x3E),
+                    );
+
+                    widgets::row_text(
+                        ui,
+                        egui::pos2(rect.min.x + 8.0, rect.min.y + 104.0),
+                        f.name.as_str(),
+                        theme::medium(11.5),
+                        t.text,
+                        card_w - 16.0,
+                    );
+                    let size = crate::panels::human_size(usize::try_from(f.size).unwrap_or(usize::MAX));
+                    let when = f.modified.map(crate::combine_ui::ago).unwrap_or_default();
+                    let detail = if when.is_empty() { size } else { format!("{when}  ·  {size}") };
+                    widgets::row_text(
+                        ui,
+                        egui::pos2(rect.min.x + 8.0, rect.min.y + 120.0),
+                        detail,
+                        theme::regular(10.0),
+                        t.text_muted,
+                        card_w - 16.0,
+                    );
+
+                    if theme::hand(resp).on_hover_text(&f.path).clicked() {
+                        open = Some(f.path.clone());
+                    }
+                }
+            });
+        } else {
+            for f in listing.files.iter().take(shown) {
+                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
+                resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &f.name));
+                if resp.hovered() {
+                    ui.painter().rect_filled(rect, CornerRadius::same(8), t.hover);
+                }
+                icons::paint(
+                    ui,
+                    Rect::from_min_size(rect.min + vec2(32.0, 9.0), vec2(20.0, 20.0)),
+                    "file-text",
+                    18.0,
+                    egui::Color32::from_rgb(0xE0, 0x3E, 0x3E),
+                );
+                let size = crate::panels::human_size(usize::try_from(f.size).unwrap_or(usize::MAX));
+                let when = f.modified.map(crate::combine_ui::ago).unwrap_or_default();
+                let detail = if when.is_empty() { size } else { format!("{when}  ·  {size}") };
+                let detail =
+                    ui.painter().text(rect.right_center() - vec2(12.0, 0.0), Align2::RIGHT_CENTER, detail, theme::regular(12.0), t.text_muted);
+                let width = detail.left() - 16.0 - (rect.left() + 62.0);
+                widgets::row_text(ui, rect.min + vec2(62.0, 19.0), f.name.as_str(), theme::medium(13.0), t.text, width);
+                if resp.on_hover_text(&f.path).clicked() {
+                    open = Some(f.path.clone());
+                }
             }
         }
         let more = listing.files.len().saturating_sub(shown);
@@ -407,6 +481,11 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
     if let Some(path) = open {
         app.open_recent(&path);
+    }
+    if let Some(folder) = reveal
+        && let Err(e) = crate::menus::tab_context::reveal(std::path::Path::new(&folder))
+    {
+        app.notify_error(e);
     }
 }
 

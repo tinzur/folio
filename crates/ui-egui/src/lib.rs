@@ -90,6 +90,7 @@ pub fn default_strip_tools() -> Vec<String> {
         "comment.square",
         "comment.circle",
         "comment.eraser",
+        "view.rotate",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -408,6 +409,8 @@ pub struct PdfCraftApp {
     pub drawer_expanded: Option<String>,
     /// The annotation tools the reader keeps in the top row, as command ids.
     pub strip_tools: Vec<String>,
+    /// Remembered direction for the toolbar rotate button (true: clockwise, false: counterclockwise).
+    pub rotate_clockwise: bool,
     /// How many rows the annotation tools use when [`Self::strip_rows_auto`] is off: 1 or 2.
     pub strip_rows: u8,
     /// Fit the annotation tools to the window: as many as the first row holds, with a second row
@@ -442,6 +445,12 @@ pub struct PdfCraftApp {
     pub recent: Vec<RecentFile>,
     /// How many recent files to keep, 0 for no list (Preferences ▸ Documents and view, #5572).
     pub recent_limit: usize,
+    /// Whether recent files are shown in a grid instead of a list.
+    pub recent_grid: bool,
+    /// Whether pinned items on Home are shown in a grid instead of a list.
+    pub pinned_grid: bool,
+    /// Incognito mode: files opened while active are not recorded to recent files.
+    pub incognito: bool,
     /// Home sections, all customizable from Home's Customize menu.
     pub home_show_pinned: bool,
     pub home_show_recent: bool,
@@ -490,6 +499,8 @@ pub struct PdfCraftApp {
     recent_check: persist::recent_check::RecentCheck,
     /// Tools pinned to Home, in user-defined order.
     pub pinned_tools: Vec<String>,
+    /// Files pinned to Home.
+    pub pinned_files: Vec<String>,
     /// Search query for the Pin a tool selection dialog.
     pub pin_tool_search: String,
     pub toast: Option<(String, f64)>,

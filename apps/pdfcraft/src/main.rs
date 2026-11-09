@@ -197,7 +197,8 @@ fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<S
     out
 }
 
-/// Name the process "Folio" so a menu bar built from it reads "Folio" (macOS; a no-op elsewhere).
+/// Name the process "Folio" (macOS; a no-op elsewhere). This does **not** rename the app menu:
+/// see the note in `main` — the menu title follows the executable's file name.
 #[cfg(target_os = "macos")]
 fn set_process_name(name: &str) {
     use objc2_foundation::{NSProcessInfo, NSString};
@@ -209,9 +210,17 @@ fn set_process_name(name: &str) {
 fn set_process_name(_name: &str) {}
 
 fn main() -> eframe::Result {
-    // The macOS menu bar takes the app's name from the process when the binary runs unbundled
-    // (`target/debug/pdfcraft`), not the bundle's CFBundleName. Set it before winit builds the
-    // menu so the permanent menu bar says "Folio" too.
+    // The macOS app menu takes its title from the executable's file name, not from the bundle's
+    // CFBundleName and not from NSProcessInfo's process name. Measured 2026-11-09: the same
+    // binary copied to `/tmp/Zebra` shows "Zebra", and `setProcessName` changes processName
+    // (pdfcraft -> Folio) while the menu title stays "pdfcraft".
+    //
+    // So this call does *not* rename the menu; it only makes the process name agree with the
+    // display name (Activity Monitor, crash reports, `ps`). The menu title is fixed by the
+    // executable's name: `target/debug/pdfcraft` reads "pdfcraft", and the packaged app is
+    // correct because packaging/macos/package.sh copies the binary to
+    // `Folio.app/Contents/MacOS/Folio`. To see "Folio" while developing, run a copy named
+    // `Folio` (see HANDOFF.md §4.6).
     set_process_name(pdfcraft_ui_egui::APP_NAME);
     // Windows: the update helper is a copy of this program started with `--finish-update`.
     #[cfg(windows)]

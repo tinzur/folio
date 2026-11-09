@@ -200,16 +200,39 @@ The goal is a **distraction-free PDF reader**, not an Acrobat-style workbench.
 - Drawn from `document_area` through the small `markup_colour_panel` helper (kept separate so
   `document_area` stays under clippy's cognitive-complexity limit).
 
-### 4.6 macOS menu bar name (added 2026-11-08)
+### 4.6 macOS menu bar name (measured 2026-11-09)
 
-- `apps/pdfcraft/src/main.rs` calls `set_process_name(APP_NAME)` before winit builds the menu, so
-  an **unbundled** binary (`target/debug/pdfcraft`) shows **Folio** in the permanent menu bar
-  instead of `pdfcraft`. Uses `objc2-foundation`'s safe `NSProcessInfo::setProcessName`; a no-op
-  off macOS. The window title also uses `APP_NAME` now instead of the literal `"PdfCraft"`.
-- The bundled app was already correct: `packaging/macos/Info.plist.in` has
-  `CFBundleName`/`CFBundleDisplayName` = Folio, and the installed `/Applications/Folio.app`
-  confirms it. **If the menu bar still says PdfCraft, the running app is `/Applications/PdfCraft.app`**
-  (the old bundle, dated Nov 7) rather than `Folio.app` (Nov 8). Quit it and launch Folio.
+**The app menu title is the executable's file name. Nothing else.** Measured on this machine:
+
+| Executable | Menu reads |
+|---|---|
+| `target/debug/pdfcraft` | `pdfcraft` |
+| the same binary copied to `/tmp/Zebra` | `Zebra` |
+| the same binary copied to `/tmp/Folio2` | `Folio2` |
+| `/Applications/Folio.app/Contents/MacOS/Folio` | `Folio` |
+
+It is **not** `CFBundleName`, and it is **not** `NSProcessInfo.setProcessName`. That call was
+tried and logged: it changes `processName` (`pdfcraft` → `Folio`) while the menu title stays
+`pdfcraft`. Do not re-add it expecting the menu to change.
+
+- **Packaged app: already correct.** `packaging/macos/package.sh:119` copies the binary to
+  `Folio.app/Contents/MacOS/Folio`, and `Info.plist.in` has `CFBundleName`/`CFBundleDisplayName`
+  = Folio. Launching `/Applications/Folio.app` shows **Folio**.
+- **If the menu still says PdfCraft, you are running the wrong bundle.** `/Applications/PdfCraft.app`
+  (dated Nov 7) still exists next to `Folio.app`. Quit it (`pkill -f PdfCraft.app`) and launch
+  `Folio.app`. This was the actual cause of the 2026-11-08 report.
+- **To see "Folio" while developing**, run a copy with that name:
+
+  ```bash
+  cargo build -p pdfcraft
+  cp target/debug/pdfcraft /tmp/Folio && /tmp/Folio "/path/to/file.pdf"
+  ```
+
+  The control channel works the same way (`/tmp/Folio --control /tmp/folio-control file.pdf`).
+- `set_process_name(APP_NAME)` in `apps/pdfcraft/src/main.rs` is kept only so `ps`, Activity
+  Monitor and crash reports show the display name. It does not affect the menu.
+- The window title does use `APP_NAME` (not the literal `"PdfCraft"`), so the title bar and the
+  Window menu are already right.
 - `eframe::storage_dir("PdfCraft")` and the Windows `LOCALAPPDATA/PdfCraft` path are
   **deliberately still PdfCraft**: they are where existing settings live, and renaming them
   would silently drop every user's preferences. Do not "fix" those strings.
@@ -355,6 +378,9 @@ helpers like `markup_colour_panel`.
 - A stale `target/debug/pdfcraft` process will be what you are testing. Rebuild and relaunch.
 - Two app bundles exist in `/Applications`: `Folio.app` (current) and `PdfCraft.app` (old, Nov 7).
   Launching the old one shows a PdfCraft menu bar. That is not a code bug.
+- The macOS app menu title is the **executable's file name** (§4.6). `setProcessName` does not
+  change it. Do not try to rename it from Rust with AppKit: that needs `unsafe`, which
+  `AGENTS.md` §4 forbids. Name the binary `Folio` instead.
 - **The working tree was dirty and did not compile** when this session started: `canvas.rs` still
   called `selection_actions` with the old positional arguments (`prefs, &app.web_tools, can_comment,
   can_copy`), so `cargo build` failed with E0061. Fixed in `92826b5` by building a

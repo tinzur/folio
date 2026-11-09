@@ -20,10 +20,6 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// Where the strip's content starts to the right of the traffic lights: the end of the three
 /// lights plus the same gap the lights keep from the top of the window.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
-/// The strip and its controls everywhere else.
-const TAB_STRIP: f32 = 38.0;
-const TAB_HEIGHT: f32 = 30.0;
-const STRIP_BUTTON: f32 = 28.0;
 
 /// Draw the window's tab strip: home and open controls, shrinkable and scrollable document tabs with drag
 /// reordering, and platform window controls.
@@ -33,9 +29,12 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     // buttons shrink to keep a margin above and below.
     let mac = cfg!(target_os = "macos") && app.integrated_titlebar;
     let left = if mac { MAC_CONTENT_LEFT as i8 } else { 8 };
-    let (tab_h, button) = if mac { (MAC_TITLE_BAR - 2.0, 24.0) } else { (TAB_HEIGHT, STRIP_BUTTON) };
+    let default_h = if mac { MAC_TITLE_BAR } else { 38.0 };
+    let base_h = if app.top_bar_size > 0.0 { app.top_bar_size } else { default_h }.clamp(24.0, 48.0);
+    let (tab_h, button) =
+        if mac { (base_h - 2.0, (base_h - 4.0).clamp(18.0, 40.0)) } else { ((base_h - 8.0).clamp(24.0, 44.0), (base_h - 10.0).clamp(20.0, 40.0)) };
     egui::Panel::top("tab_strip")
-        .exact_size(if mac { MAC_TITLE_BAR } else { TAB_STRIP })
+        .exact_size(base_h)
         .frame(egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left, right: 10, top: 0, bottom: 0 }))
         .show(ui, |ui| {
             let full = ui.max_rect();
@@ -367,6 +366,9 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     }
                     // The document actions that used to live in the mode bar, now on the
                     // document bar beside the window controls.
+                    if icons::button(ui, "settings", button, false, tl!("Preferences")).clicked() {
+                        app.execute("app.preferences");
+                    }
                     if icons::button(ui, "search", button, false, tl!("Find tools and commands")).clicked() {
                         app.palette_open = true;
                     }

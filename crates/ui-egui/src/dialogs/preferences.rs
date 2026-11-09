@@ -638,6 +638,17 @@ fn card_general(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut 
     });
     ui.add_space(6.0);
 
+    ui.horizontal(|ui| {
+        let label_top = ctx.label_primary(ui, tl!("Top bar size"), t);
+        let default_top = if cfg!(target_os = "macos") && app.integrated_titlebar { 28.0 } else { 38.0 };
+        let mut size = if app.top_bar_size > 0.0 { app.top_bar_size } else { default_top };
+        if ui.add(egui::Slider::new(&mut size, 24.0..=48.0).suffix(" pt")).labelled_by(label_top.id).changed() {
+            app.top_bar_size = size;
+        }
+    });
+    ctx.label_secondary(ui, tl!("Scale the top bar height, document tabs, and action button sizes."), t);
+    ui.add_space(6.0);
+
     #[cfg(not(target_arch = "wasm32"))]
     ctx.checkbox(ui, &mut app.reopen_last_session, tl!("Reopen the files that were open when PdfCraft last closed"), t);
     #[cfg(not(target_arch = "wasm32"))]

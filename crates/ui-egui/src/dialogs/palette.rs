@@ -2,7 +2,7 @@
 //! catalogue, with a fuzzy-ish substring match.
 
 use egui::{Align2, CornerRadius, Rect, Sense, Stroke, vec2};
-use pdfcraft_engine::catalog::{Availability, TOOL_GROUPS};
+use pdfcraft_engine::catalog::TOOL_GROUPS;
 
 use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, icons};
@@ -60,20 +60,23 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
     for spec in pdfcraft_engine::commands::COMMANDS {
         let label = pdfcraft_engine::commands::current_label(spec, &app.session, active);
         let translated = crate::i18n::command_label(&label);
-        if let Some(s) = score(&translated, &q).or_else(|| score(&label, &q)).or_else(|| score(spec.id, &q).map(|s| s + 50)) {
+        let group =
+            TOOL_GROUPS.iter().find(|g| g.id == spec.id || g.sections.iter().any(|s| s.items.iter().any(|i| i.command == spec.id))).map(|g| g.id);
+        let is_tool = group.is_some();
+        let matches_settings = (spec.id == "app.preferences" || spec.icon == "settings") && ("settings".contains(&q) || "preferences".contains(&q));
+        if let Some(s) = score(&translated, &q)
+            .or_else(|| score(&label, &q))
+            .or_else(|| score(spec.id, &q).map(|s| s + 50))
+            .or_else(|| score(spec.icon, &q).map(|s| s + 40))
+            .or_else(|| matches_settings.then_some(10))
+        {
+            let detail = if let Some(g_id) = group { TOOL_GROUPS.iter().find(|g| g.id == g_id).map(|g| tl!(g.label).to_string()) } else { None }
+                .unwrap_or_else(|| {
+                    spec.shortcut.map(|k| crate::commands::shortcut_label(ctx, k)).unwrap_or_else(|| tl!(spec.menu.unwrap_or("Command")).to_string())
+                });
             hits.push((
                 s,
-                Hit {
-                    group: None,
-                    label: translated,
-                    detail: spec
-                        .shortcut
-                        .map(|k| crate::commands::shortcut_label(ctx, k))
-                        .unwrap_or_else(|| tl!(spec.menu.unwrap_or("Command")).to_string()),
-                    icon: spec.icon,
-                    command: Some(spec.id),
-                    ready: app.command_enabled(spec),
-                },
+                Hit { group, label: translated, detail, icon: spec.icon, command: Some(spec.id), ready: app.command_enabled(spec) || is_tool },
             ));
         }
     }
@@ -81,20 +84,13 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
         if let Some(s) = score(tl!(g.label), &q).or_else(|| score(g.label, &q)) {
             hits.push((
                 s,
-                Hit {
-                    group: Some(g.id),
-                    label: tl!(g.label).to_string(),
-                    detail: tl!("Tool").into(),
-                    icon: g.icon,
-                    command: None,
-                    ready: g.availability == Availability::Ready,
-                },
+                Hit { group: Some(g.id), label: tl!(g.label).to_string(), detail: tl!("Tool").into(), icon: g.icon, command: None, ready: true },
             ));
         }
         for sec in g.sections {
             for i in sec.items {
-                if pdfcraft_engine::commands::command(i.command).is_some() {
-                    continue; // listed above as a command
+                if hits.iter().any(|(_, h)| h.command == Some(i.command)) {
+                    continue;
                 }
                 if let Some(s) = score(tl!(i.label), &q).or_else(|| score(i.label, &q)).or_else(|| score(i.command, &q).map(|s| s + 50)) {
                     hits.push((
@@ -105,7 +101,7 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             detail: tl!(g.label).into(),
                             icon: i.icon,
                             command: Some(i.command),
-                            ready: i.availability == Availability::Ready,
+                            ready: true,
                         },
                     ));
                 }

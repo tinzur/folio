@@ -112,6 +112,7 @@ impl PdfCraftApp {
             "ui_scale": self.ui_scale,
             "flatten_fill_sign": self.flatten_fill_sign_on_save,
             "fill_text_size": self.fill_text_size,
+            "top_bar_size": self.top_bar_size,
             "date_format": self.session.date_format(),
             // Null follows the interface language.
             "date_language": self.session.date_language(),
@@ -307,6 +308,9 @@ impl PdfCraftApp {
                 }
             }
             self.pinned_tools = tools;
+        }
+        if let Some(s) = v["top_bar_size"].as_f64() {
+            self.top_bar_size = (s as f32).clamp(24.0, 48.0);
         }
         if let Some(items) = v.get("pinned_files").and_then(serde_json::Value::as_array) {
             let files: Vec<String> = items.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect();

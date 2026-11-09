@@ -152,7 +152,7 @@ impl Tokens {
                 selected: Color32::from_rgb(0xE5, 0xD8, 0xC1),
                 accent: Color32::from_rgb(0x9E, 0x5B, 0x24),
                 accent_text: Color32::from_rgb(0x7A, 0x42, 0x14),
-                accent_soft: Color32::from_rgb(0xEE, 0xDF, 0xC8),
+                accent_soft: Color32::from_rgb(0xD8, 0x9D, 0x65),
                 field: Color32::from_rgb(0xEB, 0xE0, 0xCC),
                 badge_new: Color32::from_rgb(0x9E, 0x5B, 0x24),
                 page_shadow: Color32::from_black_alpha(45),
@@ -283,7 +283,7 @@ impl Tokens {
                 t.selected = Color32::from_rgb(0xE5, 0xD8, 0xC1);
                 t.accent = Color32::from_rgb(0x3B, 0x2E, 0x20);
                 t.accent_text = Color32::from_rgb(0x2A, 0x20, 0x16);
-                t.accent_soft = Color32::from_rgb(0xEE, 0xDF, 0xC8);
+                t.accent_soft = Color32::from_rgb(0xD0, 0xC2, 0xAA);
                 t.field = Color32::from_rgb(0xEB, 0xE0, 0xCC);
                 t.badge_new = Color32::from_rgb(0x3B, 0x2E, 0x20);
                 t.page_shadow = Color32::from_black_alpha(45);

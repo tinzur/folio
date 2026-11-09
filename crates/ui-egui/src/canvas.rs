@@ -2831,7 +2831,7 @@ fn markup_colour_panel(
     comments_hidden: bool,
     unobstructed: bool,
 ) {
-    if !unobstructed || tool != QuickTool::Select || comments_hidden || view.selection.is_some() {
+    if !unobstructed || (!matches!(tool, QuickTool::Select | QuickTool::Comment(_))) || comments_hidden || view.selection.is_some() {
         return;
     }
     if let Some(edit) = markup_colors(ui, avail, view, info) {

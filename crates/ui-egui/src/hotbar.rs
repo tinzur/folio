@@ -649,10 +649,10 @@ pub(crate) fn strip_layout(app: &PdfCraftApp, width: f32) -> StripLayout {
 
     let cell = if app.hotbar.button_size.is_finite() { app.hotbar.button_size.clamp(22.0, 64.0) } else { 32.0 };
     let tiny = cell.min(26.0);
-    let reading = 10.0 * (tiny + 2.0) + 160.0;
+    let reading = 7.0 * (tiny + 4.0) + 260.0;
     let has_controls = matches!(app.quick_tool, QuickTool::Comment(_))
         || matches!(app.quick_tool, QuickTool::Fill(crate::fill_sign::FillTool::Text | crate::fill_sign::FillTool::Date));
-    let left_bar = 4.0 * (cell + 2.0) + mac_inset(app) + 24.0 + if has_controls { 180.0 } else { 0.0 };
+    let left_bar = 4.0 * (cell + 4.0) + mac_inset(app) + 32.0 + if has_controls { 240.0 } else { 0.0 };
     let frame = left_bar + reading;
     let select_hand = 2.0 * (cell + 2.0) + 8.0;
     let tool_width = |id: &str| cell + 2.0 + if id == "comment.ink" || id == "comment.square" { 8.0 } else { 0.0 };
@@ -660,7 +660,7 @@ pub(crate) fn strip_layout(app: &PdfCraftApp, width: f32) -> StripLayout {
     let edit_text = app.mode == crate::Mode::Edit || app.quick_tool == QuickTool::EditText;
     let tail = 8.0 + (cell + 2.0) + if edit_text { cell + 2.0 } else { 0.0 };
     let customize = 8.0 + (cell + 2.0);
-    let one_row = frame + select_hand + tools_width + tail + customize + 8.0;
+    let one_row = frame + select_hand + tools_width + tail + customize + 16.0;
     if one_row <= width {
         return StripLayout { rows: 1, split: app.strip_tools.len() };
     }
@@ -1061,58 +1061,49 @@ fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32
         });
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
-            if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
-                app.execute("app.preferences");
-            }
-            hscroll_lock_button(app, ui, cell);
-        });
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
             view_button(app, ui, cell);
-            zoom_menu_button(app, ui, cell);
+            hscroll_lock_button(app, ui, cell);
         });
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
             zoom_step_buttons(app, ui, cell);
         });
+        let indicator_width = 2.0 * cell + 2.0;
+        zoom_menu_button(app, ui, indicator_width);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
             page_nav_buttons(app, ui, cell);
         });
-        let indicator_width = 2.0 * cell + 2.0;
         page_indicator_vertical(app, ui, t, indicator_width, cell);
     } else {
         dock_position_button(app, ui, cell);
         if icons::button(ui, "maximize", cell, false, tl!("Full Screen (⌘L)")).clicked() {
             app.execute("view.full_screen");
         }
-        if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
-            app.execute("app.preferences");
-        }
         hscroll_lock_button(app, ui, cell);
         view_button(app, ui, cell);
+        if icons::button(ui, "zoom-in", cell, false, tl!("Zoom in")).clicked()
+            && let Some(i) = app.active
+        {
+            app.views[i].zoom_step(true);
+        }
         zoom_menu_button(app, ui, cell);
         if icons::button(ui, "zoom-out", cell, false, tl!("Zoom out")).clicked()
             && let Some(i) = app.active
         {
             app.views[i].zoom_step(false);
         }
-        if icons::button(ui, "zoom-in", cell, false, tl!("Zoom in")).clicked()
-            && let Some(i) = app.active
-        {
-            app.views[i].zoom_step(true);
-        }
         if icons::button(ui, "chevron-left", cell, false, tl!("Previous page")).clicked()
             && let Some(i) = app.active
         {
             app.views[i].step_page(false);
         }
+        page_indicator_vertical(app, ui, t, cell, cell);
         if icons::button(ui, "chevron-right", cell, false, tl!("Next page")).clicked()
             && let Some(i) = app.active
         {
             app.views[i].step_page(true);
         }
-        page_indicator_vertical(app, ui, t, cell, cell);
     }
 }
 
@@ -1124,9 +1115,6 @@ fn reading_controls(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
     dock_position_button(app, ui, cell);
     if icons::button(ui, "maximize", cell, false, tl!("Full Screen (⌘L)")).clicked() {
         app.execute("view.full_screen");
-    }
-    if icons::button(ui, "settings", cell, false, tl!("Preferences")).clicked() {
-        app.execute("app.preferences");
     }
     view_button(app, ui, cell);
     zoom_controls(app, ui, cell);
@@ -1334,16 +1322,16 @@ fn zoom_controls(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
     }
 }
 
-fn zoom_menu_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
+fn zoom_menu_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, width: f32) {
     let Some(index) = app.active else { return };
     let view = &mut app.views[index];
     let percent = format!("{:.0}%", view.zoom * 100.0);
     let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
     let align = popup_align_for(app.hotbar.dock.as_deref(), is_vert);
-    let font_size = if cell < 30.0 {
-        8.5
-    } else if cell < 36.0 {
-        9.5
+    let font_size = if width < 32.0 {
+        8.0
+    } else if width < 42.0 {
+        9.0
     } else {
         10.5
     };
@@ -1351,7 +1339,7 @@ fn zoom_menu_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
         .scope(|ui| {
             ui.spacing_mut().button_padding = vec2(1.0, 1.0);
             ui.add_sized(
-                [cell, cell.max(22.0)],
+                [width, 22.0],
                 egui::Button::new(egui::RichText::new(percent).font(crate::theme::medium(font_size)).color(crate::theme::Tokens::get(ui.ctx()).text))
                     .wrap_mode(egui::TextWrapMode::Extend),
             )

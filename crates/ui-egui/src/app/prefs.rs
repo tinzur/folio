@@ -166,6 +166,9 @@ impl PdfCraftApp {
         v["focus_mode"] = serde_json::json!(self.focus_mode);
         v["split_ratio"] = serde_json::json!(self.split_ratio);
         v["comment_tool_pinned"] = serde_json::Value::Bool(self.comment_prefs.pinned);
+        v["recent_grid"] = serde_json::Value::Bool(self.recent_grid);
+        v["pinned_grid"] = serde_json::Value::Bool(self.pinned_grid);
+        v["folder_grid"] = serde_json::Value::Bool(self.folder_grid);
         v["show_secured_notice"] = serde_json::Value::Bool(self.show_secured_notice);
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
@@ -202,6 +205,15 @@ impl PdfCraftApp {
         }
         if let Some(focus) = v["focus_mode"].as_bool() {
             self.focus_mode = focus;
+        }
+        if let Some(g) = v["recent_grid"].as_bool() {
+            self.recent_grid = g;
+        }
+        if let Some(g) = v["pinned_grid"].as_bool() {
+            self.pinned_grid = g;
+        }
+        if let Some(g) = v["folder_grid"].as_bool() {
+            self.folder_grid = g;
         }
         if let Some(ratio) = v["split_ratio"].as_f64() {
             self.split_ratio = (ratio as f32).clamp(0.2, 0.8);

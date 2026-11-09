@@ -12,6 +12,8 @@ pub enum ThemeKind {
     Light,
     Dark,
     Sepia,
+    Nordic,
+    Dracula,
 }
 
 /// The saved user choice, independent of the light/dark colours currently displayed. A fresh
@@ -23,6 +25,8 @@ pub enum ThemePreference {
     Light,
     Dark,
     Sepia,
+    Nordic,
+    Dracula,
 }
 
 impl ThemePreference {
@@ -33,6 +37,8 @@ impl ThemePreference {
             Self::Light => ThemeKind::Light,
             Self::Dark => ThemeKind::Dark,
             Self::Sepia => ThemeKind::Sepia,
+            Self::Nordic => ThemeKind::Nordic,
+            Self::Dracula => ThemeKind::Dracula,
             Self::System => match system {
                 Some(true) => ThemeKind::Dark,
                 Some(false) => ThemeKind::Light,
@@ -147,9 +153,59 @@ impl Tokens {
                 accent: Color32::from_rgb(0x9E, 0x5B, 0x24),
                 accent_text: Color32::from_rgb(0x7A, 0x42, 0x14),
                 accent_soft: Color32::from_rgb(0xEE, 0xDF, 0xC8),
-                field: Color32::from_rgb(0xFA, 0xF5, 0xEA),
+                field: Color32::from_rgb(0xEB, 0xE0, 0xCC),
                 badge_new: Color32::from_rgb(0x9E, 0x5B, 0x24),
                 page_shadow: Color32::from_black_alpha(45),
+                radius: 6,
+            },
+            ThemeKind::Nordic => Self {
+                kind,
+                mono: false,
+                titlebar: Color32::from_rgb(0x24, 0x29, 0x33),
+                chrome: Color32::from_rgb(0x2E, 0x34, 0x40),
+                panel: Color32::from_rgb(0x2E, 0x34, 0x40),
+                pasteboard: Color32::from_rgb(0x22, 0x27, 0x30),
+                card: Color32::from_rgb(0x3B, 0x42, 0x52),
+                border: Color32::from_rgb(0x43, 0x4C, 0x5E),
+                divider: Color32::from_rgb(0x3B, 0x42, 0x52),
+                text: Color32::from_rgb(0xEC, 0xEF, 0xF4),
+                text_muted: Color32::from_rgb(0xD8, 0xDE, 0xE9),
+                text_faint: Color32::from_rgb(0x94, 0xA1, 0xB8),
+                icon: Color32::from_rgb(0xDC, 0xE2, 0xEE),
+                hover: Color32::from_rgb(0x3B, 0x42, 0x52),
+                pressed: Color32::from_rgb(0x4C, 0x56, 0x6A),
+                selected: Color32::from_rgb(0x3B, 0x4B, 0x5E),
+                accent: Color32::from_rgb(0x88, 0xC0, 0xD0),
+                accent_text: Color32::from_rgb(0x8F, 0xBC, 0xBB),
+                accent_soft: Color32::from_rgb(0x3B, 0x4D, 0x5B),
+                field: Color32::from_rgb(0x24, 0x29, 0x33),
+                badge_new: Color32::from_rgb(0x88, 0xC0, 0xD0),
+                page_shadow: Color32::from_black_alpha(100),
+                radius: 6,
+            },
+            ThemeKind::Dracula => Self {
+                kind,
+                mono: false,
+                titlebar: Color32::from_rgb(0x21, 0x22, 0x2C),
+                chrome: Color32::from_rgb(0x28, 0x2A, 0x36),
+                panel: Color32::from_rgb(0x28, 0x2A, 0x36),
+                pasteboard: Color32::from_rgb(0x1E, 0x1F, 0x29),
+                card: Color32::from_rgb(0x34, 0x37, 0x46),
+                border: Color32::from_rgb(0x44, 0x47, 0x5A),
+                divider: Color32::from_rgb(0x38, 0x3A, 0x4C),
+                text: Color32::from_rgb(0xF8, 0xF8, 0xF2),
+                text_muted: Color32::from_rgb(0xC3, 0xC7, 0xDB),
+                text_faint: Color32::from_rgb(0x62, 0x72, 0xA4),
+                icon: Color32::from_rgb(0xF8, 0xF8, 0xF2),
+                hover: Color32::from_rgb(0x38, 0x3C, 0x4E),
+                pressed: Color32::from_rgb(0x44, 0x47, 0x5A),
+                selected: Color32::from_rgb(0x44, 0x47, 0x5A),
+                accent: Color32::from_rgb(0xBD, 0x93, 0xF9),
+                accent_text: Color32::from_rgb(0x8B, 0xE9, 0xFD),
+                accent_soft: Color32::from_rgb(0x3E, 0x38, 0x59),
+                field: Color32::from_rgb(0x21, 0x22, 0x2C),
+                badge_new: Color32::from_rgb(0xFF, 0x79, 0xC6),
+                page_shadow: Color32::from_black_alpha(110),
                 radius: 6,
             },
         }
@@ -228,9 +284,21 @@ impl Tokens {
                 t.accent = Color32::from_rgb(0x3B, 0x2E, 0x20);
                 t.accent_text = Color32::from_rgb(0x2A, 0x20, 0x16);
                 t.accent_soft = Color32::from_rgb(0xEE, 0xDF, 0xC8);
-                t.field = Color32::from_rgb(0xFA, 0xF5, 0xEA);
+                t.field = Color32::from_rgb(0xEB, 0xE0, 0xCC);
                 t.badge_new = Color32::from_rgb(0x3B, 0x2E, 0x20);
                 t.page_shadow = Color32::from_black_alpha(45);
+            }
+            ThemeKind::Nordic => {
+                t.accent = Color32::from_rgb(0xED, 0xED, 0xED);
+                t.accent_text = Color32::WHITE;
+                t.accent_soft = Color32::from_rgb(0x43, 0x4C, 0x5E);
+                t.badge_new = Color32::from_rgb(0xED, 0xED, 0xED);
+            }
+            ThemeKind::Dracula => {
+                t.accent = Color32::from_rgb(0xF8, 0xF8, 0xF2);
+                t.accent_text = Color32::WHITE;
+                t.accent_soft = Color32::from_rgb(0x44, 0x47, 0x5A);
+                t.badge_new = Color32::from_rgb(0xF8, 0xF8, 0xF2);
             }
         }
         t
@@ -242,7 +310,7 @@ impl Tokens {
     }
 
     pub fn dark(&self) -> bool {
-        self.kind == ThemeKind::Dark
+        matches!(self.kind, ThemeKind::Dark | ThemeKind::Nordic | ThemeKind::Dracula)
     }
 
     /// Black-and-white chrome, so tool icons drop their group colour.
@@ -589,7 +657,7 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind, monochrome: bool) {
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, t.divider);
     v.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
     v.widgets.inactive.bg_fill = t.field;
-    v.widgets.inactive.bg_stroke = Stroke::NONE;
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_fill = t.hover;
     v.widgets.hovered.bg_stroke = Stroke::NONE;

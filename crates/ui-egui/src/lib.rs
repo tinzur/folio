@@ -449,6 +449,8 @@ pub struct PdfCraftApp {
     pub recent_grid: bool,
     /// Whether pinned items on Home are shown in a grid instead of a list.
     pub pinned_grid: bool,
+    /// Whether folder listings on Home are shown in a grid instead of a list.
+    pub folder_grid: bool,
     /// Incognito mode: files opened while active are not recorded to recent files.
     pub incognito: bool,
     /// Home sections, all customizable from Home's Customize menu.

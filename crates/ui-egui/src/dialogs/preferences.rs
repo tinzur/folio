@@ -153,6 +153,10 @@ pub fn preference_card<R>(
         if t.dark() { Color32::from_rgb(0x1E, 0x1E, 0x1E) } else { Color32::from_gray(0xF6) }
     } else if t.kind == ThemeKind::Light {
         Color32::from_rgb(0xF7, 0xF8, 0xFA)
+    } else if t.kind == ThemeKind::Nordic {
+        Color32::from_rgb(0x3B, 0x42, 0x52)
+    } else if t.kind == ThemeKind::Dracula {
+        Color32::from_rgb(0x28, 0x2A, 0x36)
     } else {
         Color32::from_rgb(0x24, 0x24, 0x28)
     };

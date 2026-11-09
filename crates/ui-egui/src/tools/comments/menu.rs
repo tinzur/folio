@@ -84,7 +84,11 @@ pub(crate) fn context_menu(
                     ui.add_space(4.0);
                     let mut pct = 80.0;
                     let opacity_lbl = ui.label(egui::RichText::new(tl!("Opacity")).strong());
-                    if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).labelled_by(opacity_lbl.id).changed() {
+                    if ui
+                        .add(egui::Slider::new(&mut pct, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true))
+                        .labelled_by(opacity_lbl.id)
+                        .changed()
+                    {
                         action = Some(CanvasAction::Edit(Box::new(Edit::StyleAnnotation {
                             page,
                             index,
@@ -97,7 +101,11 @@ pub(crate) fn context_menu(
                     ui.add_space(4.0);
                     let mut w = 2.0;
                     let width_lbl = ui.label(egui::RichText::new(tl!("Line thickness")).strong());
-                    if ui.add(egui::Slider::new(&mut w, 0.5..=24.0).step_by(0.5).suffix(" pt").trailing_fill(true)).labelled_by(width_lbl.id).changed() {
+                    if ui
+                        .add(egui::Slider::new(&mut w, 0.5..=24.0).step_by(0.5).suffix(" pt").trailing_fill(true))
+                        .labelled_by(width_lbl.id)
+                        .changed()
+                    {
                         action = Some(CanvasAction::Edit(Box::new(Edit::StyleAnnotation {
                             page,
                             index,
@@ -351,7 +359,8 @@ pub(crate) fn quick_bar_controls(ui: &mut egui::Ui, tool: CommentTool, prefs: &m
         ui.add_space(4.0);
         let mut percent = (style.opacity * 100.0).round();
         let opacity_label = ui.label(egui::RichText::new(tl!("Opacity")).strong());
-        if ui.add(egui::Slider::new(&mut percent, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).labelled_by(opacity_label.id).changed() {
+        if ui.add(egui::Slider::new(&mut percent, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).labelled_by(opacity_label.id).changed()
+        {
             let o = percent / 100.0;
             prefs.set_opacity(tool, o);
             change.opacity = Some(o);

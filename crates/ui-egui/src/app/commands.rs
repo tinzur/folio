@@ -59,6 +59,15 @@ impl PdfCraftApp {
     /// Enter a tool from the catalogue, Home, palette or control channel. Organize is a
     /// workspace, so opening its panel also opens the page grid (without toggling it off).
     pub(crate) fn select_tool(&mut self, id: &'static str) {
+        if id == "combine" {
+            self.execute("page.combine");
+            return;
+        }
+        if self.active.is_none() {
+            self.pending_tool_on_open = Some(id);
+            self.open_dialog();
+            return;
+        }
         // The tool's panel shows, not the expanded All tools view over it.
         self.all_tools_full = false;
         self.left = LeftPanel::Tool(id);
@@ -69,6 +78,12 @@ impl PdfCraftApp {
             } else {
                 view.organize = false;
             }
+        }
+        if id == "edit" {
+            self.mode = Mode::Edit;
+            self.quick_tool = QuickTool::EditText;
+        } else if id == "fill_sign" {
+            self.mode = Mode::Sign;
         }
     }
 

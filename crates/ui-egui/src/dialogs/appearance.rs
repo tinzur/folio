@@ -90,7 +90,16 @@ fn preview(ui: &mut egui::Ui, kind: ThemeKind, width: f32, mono: bool) {
 
 /// One theme card: its title, Active when it is what shows now, and a preview of the chosen theme.
 /// Returns whether the card was clicked and the control's Response.
-fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(ThemeKind, &str)], query: &str, mono: bool) -> (bool, egui::Response) {
+fn card(
+    ui: &mut egui::Ui,
+    t: &Tokens,
+    title: &str,
+    active: bool,
+    themes: &[(ThemeKind, &str)],
+    query: &str,
+    mono: bool,
+) -> (Option<ThemePreference>, egui::Response) {
+    let mut chosen_pref = None;
     let mut card_clicked = false;
     let frame_stroke = if active { Stroke::new(1.5, t.accent) } else { Stroke::new(1.0, t.border) };
     let scope_res = ui.scope_builder(egui::UiBuilder::new().id_salt(title).sense(egui::Sense::click()), |ui| {
@@ -113,6 +122,25 @@ fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(The
                         ui.label(RichText::new(tl!("Active")).color(t.accent_text).small());
                     }
                 });
+                if themes.len() > 1 {
+                    ui.add_space(2.0);
+                    ui.horizontal(|ui| {
+                        for (kind, name) in themes {
+                            let selected = t.kind == *kind;
+                            let btn = ui.selectable_label(selected, tl!(*name));
+                            if btn.clicked() {
+                                let pref = match kind {
+                                    ThemeKind::Dark => ThemePreference::Dark,
+                                    ThemeKind::Nordic => ThemePreference::Nordic,
+                                    ThemeKind::Dracula => ThemePreference::Dracula,
+                                    ThemeKind::Sepia => ThemePreference::Sepia,
+                                    ThemeKind::Light => ThemePreference::Light,
+                                };
+                                chosen_pref = Some(pref);
+                            }
+                        }
+                    });
+                }
                 ui.add_space(4.0);
                 let shown = themes
                     .iter()
@@ -135,7 +163,14 @@ fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(The
     if resp.clicked() || key_select {
         card_clicked = true;
     }
-    (card_clicked, resp)
+    if chosen_pref.is_none() && card_clicked {
+        let default_pref = match themes.first().map(|(k, _)| *k) {
+            Some(ThemeKind::Dark) => ThemePreference::Dark,
+            _ => ThemePreference::Light,
+        };
+        chosen_pref = Some(default_pref);
+    }
+    (chosen_pref, resp)
 }
 
 /// The Appearance section of Preferences.
@@ -190,15 +225,15 @@ pub(crate) fn preferences_section_with_context(
 
     ui.columns(2, |cols| {
         let [light, dark] = cols else { return };
-        let (light_clicked, light_resp) = card(light, t, light_title, light_active, LIGHT_THEMES, ctx.query, app.monochrome);
-        if light_clicked {
-            app.execute(mode_command(ThemePreference::Light));
+        let (light_chosen, light_resp) = card(light, t, light_title, light_active, LIGHT_THEMES, ctx.query, app.monochrome);
+        if let Some(pref) = light_chosen {
+            app.execute(mode_command(pref));
         }
         ctx.scroll_if_first_match(&light_resp, light_matches);
 
-        let (dark_clicked, dark_resp) = card(dark, t, dark_title, dark_active, DARK_THEMES, ctx.query, app.monochrome);
-        if dark_clicked {
-            app.execute(mode_command(ThemePreference::Dark));
+        let (dark_chosen, dark_resp) = card(dark, t, dark_title, dark_active, DARK_THEMES, ctx.query, app.monochrome);
+        if let Some(pref) = dark_chosen {
+            app.execute(mode_command(pref));
         }
         ctx.scroll_if_first_match(&dark_resp, dark_matches);
     });

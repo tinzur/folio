@@ -451,6 +451,8 @@ pub struct PdfCraftApp {
     pub pinned_grid: bool,
     /// Whether folder listings on Home are shown in a grid instead of a list.
     pub folder_grid: bool,
+    /// Tool to activate as soon as the next document finishes opening.
+    pub pending_tool_on_open: Option<&'static str>,
     /// Incognito mode: files opened while active are not recorded to recent files.
     pub incognito: bool,
     /// Home sections, all customizable from Home's Customize menu.

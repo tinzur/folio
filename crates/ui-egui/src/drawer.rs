@@ -195,12 +195,7 @@ fn catalog(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         for category in TOOL_CATEGORIES {
             let groups: Vec<&ToolGroup> = category.groups.iter().filter_map(|id| catalog::group(id)).collect();
-            let visible: Vec<&ToolGroup> = groups
-                .iter()
-                .copied()
-                .filter(|g| group_matches(g, &query))
-                .filter(|g| !(query.is_empty() && pinned.iter().any(|p| p.id == g.id)))
-                .collect();
+            let visible: Vec<&ToolGroup> = groups.iter().copied().filter(|g| group_matches(g, &query)).collect();
             if visible.is_empty() {
                 continue;
             }
@@ -429,11 +424,13 @@ fn toolbar_editor(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
             }
         }
         ui.add_space(8.0);
-        ui.label(
-            egui::RichText::new(crate::i18n::fmt(tl!("Fitting: {n} row(s)"), &[("n", &app.strip_rows_shown.to_string())]))
-                .font(theme::regular(11.0))
-                .color(t.text_muted),
-        );
+        let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
+        let fit_label = if is_vert {
+            crate::i18n::fmt(tl!("Fitting: {n} col(s)"), &[("n", &app.strip_rows_shown.to_string())])
+        } else {
+            crate::i18n::fmt(tl!("Fitting: {n} row(s)"), &[("n", &app.strip_rows_shown.to_string())])
+        };
+        ui.label(egui::RichText::new(fit_label).font(theme::regular(11.0)).color(t.text_muted));
         ui.add_space(12.0);
         let size_label = ui.label(egui::RichText::new(tl!("Icon size")).font(theme::medium(12.0)).color(t.text));
         let mut size = app.hotbar.button_size;

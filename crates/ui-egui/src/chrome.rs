@@ -306,6 +306,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 let tip = crate::commands::command_tip(ui.ctx(), tl!("Open a PDF ({key})"), "file.open");
                 let open_resp = widgets::ghost_button_sized(ui, "plus", tl!("Open"), tab_h).on_hover_text(tip);
                 let mut open_file = None;
+                let mut open_as_file = None;
                 let mut trigger_browse = false;
                 egui::Popup::menu(&open_resp).id(open_resp.id.with("open_dropdown")).show(|ui| {
                     ui.set_min_width(220.0);
@@ -323,6 +324,20 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                     .frame(false)
                                     .wrap_mode(egui::TextWrapMode::Truncate),
                             );
+                            egui::Popup::context_menu(&item_btn).id(item_btn.id.with("tab_recent_ctx")).show(|ui| {
+                                if ui.button(tl!("Open in Edit Mode")).clicked() {
+                                    open_as_file = Some((r.path.clone(), "edit"));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Organize pages")).clicked() {
+                                    open_as_file = Some((r.path.clone(), "organize"));
+                                    ui.close();
+                                }
+                                if ui.button(tl!("Fill & Sign")).clicked() {
+                                    open_as_file = Some((r.path.clone(), "fill_sign"));
+                                    ui.close();
+                                }
+                            });
                             if item_btn.on_hover_text(&r.path).clicked() {
                                 open_file = Some(r.path.clone());
                                 ui.close();
@@ -333,7 +348,10 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 if trigger_browse {
                     app.open_dialog();
                 }
-                if let Some(path) = open_file {
+                if let Some((path, tool)) = open_as_file {
+                    app.pending_tool_on_open = Some(tool);
+                    app.open_path(&path);
+                } else if let Some(path) = open_file {
                     app.open_path(&path);
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -394,6 +412,22 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 
 /// The right-click menu on the title bar's theme button.
 fn appearance_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    let themes = [
+        (ThemePreference::System, tl!("Use system setting")),
+        (ThemePreference::Light, tl!("Light gray")),
+        (ThemePreference::Dark, tl!("Dark gray")),
+        (ThemePreference::Sepia, tl!("Sepia")),
+        (ThemePreference::Nordic, tl!("Nordic")),
+        (ThemePreference::Dracula, tl!("Dracula")),
+    ];
+    for (pref, label) in themes {
+        let checked = app.theme_preference == pref;
+        if ui.selectable_label(checked, label).clicked() {
+            app.set_theme_preference(pref);
+            ui.close();
+        }
+    }
+    ui.separator();
     let mut mono = app.monochrome;
     if ui.add(crate::widgets::checkbox(&mut mono, tl!("Monochrome"))).changed() {
         app.set_monochrome(mono);

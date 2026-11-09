@@ -257,6 +257,8 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("view.theme.light", "Light gray", None, None, Nothing, "sun"),
     c("view.theme.dark", "Dark gray", None, None, Nothing, "moon"),
     c("view.theme.sepia", "Sepia", None, None, Nothing, "book-open"),
+    c("view.theme.nordic", "Nordic", None, None, Nothing, "snowflake"),
+    c("view.theme.dracula", "Dracula", None, None, Nothing, "sparkles"),
     c("view.monochrome", "Monochrome", None, None, Nothing, "contrast"),
     c("comment.list", "Comments panel", VIEW, None, Document, "message-square-text"),
     c("comment.note", "Add a sticky note", None, None, Annotate, "sticky-note"),

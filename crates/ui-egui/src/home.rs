@@ -357,6 +357,7 @@ fn recent_grid_view(
     ui: &mut egui::Ui,
     t: &Tokens,
     open: &mut Option<String>,
+    open_as: &mut Option<(String, &'static str)>,
     remove: &mut Option<String>,
     toggle_pin: &mut Option<String>,
 ) {
@@ -403,7 +404,22 @@ fn recent_grid_view(
             let pages = format!("{}  ·  {}", crate::i18n::trn(crate::i18n::current(), r.pages as u64, "{n} page", "{n} pages"), human_size(r.size));
             widgets::row_text(ui, egui::pos2(rect.min.x + 8.0, rect.min.y + 120.0), pages, theme::regular(10.0), t.text_muted, card_w - 16.0);
 
-            if theme::hand(resp).on_hover_text(&r.path).clicked() {
+            let item_resp = theme::hand(resp);
+            egui::Popup::context_menu(&item_resp).id(item_resp.id.with("recent_ctx_grid")).show(|ui| {
+                if ui.button(tl!("Open in Edit Mode")).clicked() {
+                    *open_as = Some((r.path.clone(), "edit"));
+                    ui.close();
+                }
+                if ui.button(tl!("Organize pages")).clicked() {
+                    *open_as = Some((r.path.clone(), "organize"));
+                    ui.close();
+                }
+                if ui.button(tl!("Fill & Sign")).clicked() {
+                    *open_as = Some((r.path.clone(), "fill_sign"));
+                    ui.close();
+                }
+            });
+            if item_resp.on_hover_text(&r.path).clicked() {
                 *open = Some(r.path.clone());
             }
         }
@@ -415,6 +431,7 @@ fn recent_list_view(
     ui: &mut egui::Ui,
     t: &Tokens,
     open: &mut Option<String>,
+    open_as: &mut Option<(String, &'static str)>,
     remove: &mut Option<String>,
     toggle_pin: &mut Option<String>,
 ) {
@@ -461,7 +478,22 @@ fn recent_list_view(
         let width = detail.left() - 16.0 - (body.left() + 44.0);
         widgets::row_text(ui, body.min + vec2(44.0, 16.0), r.name.as_str(), theme::medium(13.0), t.text, width);
         widgets::row_text(ui, body.min + vec2(44.0, 33.0), r.path.as_str(), theme::regular(10.8), t.text_faint, width);
-        if theme::hand(resp).on_hover_text(&r.path).clicked() {
+        let item_resp = theme::hand(resp);
+        egui::Popup::context_menu(&item_resp).id(item_resp.id.with("recent_ctx_list")).show(|ui| {
+            if ui.button(tl!("Open in Edit Mode")).clicked() {
+                *open_as = Some((r.path.clone(), "edit"));
+                ui.close();
+            }
+            if ui.button(tl!("Organize pages")).clicked() {
+                *open_as = Some((r.path.clone(), "organize"));
+                ui.close();
+            }
+            if ui.button(tl!("Fill & Sign")).clicked() {
+                *open_as = Some((r.path.clone(), "fill_sign"));
+                ui.close();
+            }
+        });
+        if item_resp.on_hover_text(&r.path).clicked() {
             *open = Some(r.path.clone());
         }
     }
@@ -504,14 +536,18 @@ fn recent(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         return;
     }
     let mut open = None;
+    let mut open_as = None;
     let mut remove = None;
     let mut toggle_pin = None;
     if app.recent_grid {
-        recent_grid_view(app, ui, t, &mut open, &mut remove, &mut toggle_pin);
+        recent_grid_view(app, ui, t, &mut open, &mut open_as, &mut remove, &mut toggle_pin);
     } else {
-        recent_list_view(app, ui, t, &mut open, &mut remove, &mut toggle_pin);
+        recent_list_view(app, ui, t, &mut open, &mut open_as, &mut remove, &mut toggle_pin);
     }
-    if let Some(p) = open {
+    if let Some((p, tool)) = open_as {
+        app.pending_tool_on_open = Some(tool);
+        app.open_recent(&p);
+    } else if let Some(p) = open {
         app.open_recent(&p);
     }
     if let Some(p) = remove {

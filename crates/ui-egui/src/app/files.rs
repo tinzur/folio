@@ -345,6 +345,9 @@ impl PdfCraftApp {
         if activate {
             let out = self.session.take_js_output(id);
             self.handle_js(id, out);
+            if let Some(tool) = self.pending_tool_on_open.take() {
+                self.select_tool(tool);
+            }
         }
         Ok(id)
     }
@@ -575,6 +578,9 @@ impl PdfCraftApp {
         if let Some(i) = self.tab_showing(path) {
             self.startup_superseded = true;
             self.active = Some(i);
+            if let Some(tool) = self.pending_tool_on_open.take() {
+                self.select_tool(tool);
+            }
             if let Some((layout, continuous)) = display_override
                 && let Some(view) = self.views.get_mut(i)
             {

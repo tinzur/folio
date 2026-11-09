@@ -143,6 +143,7 @@ impl PdfCraftApp {
             recent_grid: false,
             pinned_grid: false,
             folder_grid: false,
+            pending_tool_on_open: None,
             incognito: false,
             home_show_pinned: true,
             home_show_recent: true,

@@ -167,7 +167,7 @@ const DISPLAY: &[&str] = &[
     "view.fit_width_scrolling",
     "view.fit_one_page",
 ];
-const THEMES: &[&str] = &["view.theme.system", "view.theme.light", "view.theme.dark"];
+const THEMES: &[&str] = &["view.theme.system", "view.theme.light", "view.theme.dark", "view.theme.sepia", "view.theme.nordic", "view.theme.dracula"];
 const PANES: &[&str] = &["view.side_panel", "view.tools_pane"];
 const PANE_COMMANDS: &[&str] = &["comment.list", "form.fields", "ui.dock.reset"];
 const MODES: &[&str] = &["view.full_screen", "view.read_mode", "view.focus_mode", "view.split"];
@@ -509,6 +509,8 @@ impl PdfCraftApp {
             "view.theme.light" => Some(self.theme_preference == ThemePreference::Light),
             "view.theme.dark" => Some(self.theme_preference == ThemePreference::Dark),
             "view.theme.sepia" => Some(self.theme_preference == ThemePreference::Sepia),
+            "view.theme.nordic" => Some(self.theme_preference == ThemePreference::Nordic),
+            "view.theme.dracula" => Some(self.theme_preference == ThemePreference::Dracula),
             "view.monochrome" => Some(self.monochrome),
             PANEL => Some(panel(command).is_some_and(|p| self.right == Some(p))),
             _ => None,

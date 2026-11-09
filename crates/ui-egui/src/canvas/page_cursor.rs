@@ -53,7 +53,7 @@ impl Layer {
     pub(crate) fn reached_by(self, tool: QuickTool) -> bool {
         match self {
             Layer::Link => matches!(tool, QuickTool::Select | QuickTool::Link),
-            Layer::Comment => tool == QuickTool::Select,
+            Layer::Comment => matches!(tool, QuickTool::Select | QuickTool::Comment(_)),
             Layer::ToolArea | Layer::Text | Layer::Field | Layer::Placed | Layer::Handle | Layer::Editor | Layer::Drag => true,
         }
     }

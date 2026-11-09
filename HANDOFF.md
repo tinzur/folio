@@ -1,8 +1,13 @@
 # Folio / PdfCraft reader — current handoff
 
-**Read this first.** This supersedes the older redesign notes. Last updated 2026-11-08, after the
-search-the-web, mark-colour and menu-bar work. **If you are a different agent or harness, jump to
-§8** — it is written to be read cold, with the state, the gates, the traps and a file map.
+**Read this first.** This supersedes the older redesign notes. Last updated 2026-11-09.
+
+**If you are a different agent or harness, read these two, in this order:**
+
+1. **`docs/folio-fork-guide.md`** — what this fork changed and, more importantly, what it did
+   *not* change. The tree is ~399k lines of Rust and most of it is upstream PdfCraft; that file
+   stops you reading engine code that is not in scope.
+2. **§8 below** — the state, the gates to run, the traps already hit, and a file map.
 
 ## 1. Start here
 
@@ -28,8 +33,12 @@ git tag -a v0.18.2 -m "0.18.2"
 ```
 
 There is no remote yet. `target/`, `dist/`, `assets/models/` and `.perch/` are ignored, so a
-commit is about 43 MB of source, not the 16 GB build tree. Work on short-lived branches
-(`feat/…`, `fix/…`) off `main`; `main` always builds and always passes the tests below.
+commit is about 44 MB of source, not the build tree. Work on short-lived branches (`feat/…`,
+`fix/…`) off `main`; `main` always builds and always passes the tests below.
+
+**The working tree is 61 MB as of 2026-11-09** (44 MB tracked source + 17 MB `.git`). `target/`,
+`dist/`, `assets/models/` and `.perch/` were deleted to reclaim 11 GB; the first build after that
+is cold.
 
 The app is a Rust/egui fork/rebrand of the open-source **PdfCraft** engine. The current display
 name is the **working name “Folio”**, not a final naming decision. The user is TINZUR
@@ -45,14 +54,13 @@ cargo run -p pdfcraft
 ```
 
 The user explicitly does **not** want a DMG built after every change. Build one only at the end,
-when they ask for the final DMG. The last DMG predates the latest horizontal-lock work:
+when they ask for the final DMG.
 
-```text
-dist/release/folio-0.18.1-macos-aarch64.dmg
-```
-
-It is 37 MB, arm64-only, ad-hoc signed, includes the OCR models, and is **not the latest code**.
-For normal testing use the debug app above.
+**There is no DMG and no installed app right now.** `dist/` was deleted on 2026-11-09 along with
+`/Applications/Folio.app` and the stale `/Applications/PdfCraft.app`. The previous DMG was
+`folio-0.18.1-macos-aarch64.dmg` (37 MB, arm64-only, ad-hoc signed, OCR models included) and it
+predated several commits, so it was not worth keeping. To make a new one, see §7 item 6. For
+normal testing use the debug app above.
 
 Before judging a change, make sure an old `target/debug/pdfcraft` process/file is not what is
 being tested; rebuild and relaunch.
@@ -376,8 +384,14 @@ helpers like `markup_colour_panel`.
   `ui.inspect` in this build. Drive Preferences through the headless tests
   (`tests/it/preferences_layout.rs`) instead.
 - A stale `target/debug/pdfcraft` process will be what you are testing. Rebuild and relaunch.
-- Two app bundles exist in `/Applications`: `Folio.app` (current) and `PdfCraft.app` (old, Nov 7).
-  Launching the old one shows a PdfCraft menu bar. That is not a code bug.
+- **`target/` was deleted on 2026-11-09** to reclaim 11 GB. The first `cargo build -p pdfcraft`
+  after that is a cold build (roughly 20 minutes); after that it is seconds. `dist/`,
+  `assets/models/` and `.perch/` were removed too — the OCR models are re-fetched by the packaging
+  script and are pinned in `ATTRIBUTION.toml`.
+- **Both app bundles were deleted on 2026-11-09** (`/Applications/Folio.app` and the stale
+  `/Applications/PdfCraft.app`). Nothing is installed now: build and run from `target/`, or run
+  `packaging/macos/package.sh` to make a new `Folio.app`. The old `PdfCraft.app` was the cause of
+  the "menu bar still says PdfCraft" report — it is gone, so that confusion cannot recur.
 - The macOS app menu title is the **executable's file name** (§4.6). `setProcessName` does not
   change it. Do not try to rename it from Rust with AppKit: that needs `unsafe`, which
   `AGENTS.md` §4 forbids. Name the binary `Folio` instead.

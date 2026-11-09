@@ -102,12 +102,18 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
         crate::field_table_ui::show(app, ctx);
         return;
     }
+    let last_dialog_id = egui::Id::unique("active_dialog_type");
     let Some(dialog) = app.dialog else {
+        ctx.data_mut(|d| d.remove::<std::mem::Discriminant<Dialog>>(last_dialog_id));
         app.props_draft = None;
         app.view_draft = None;
         app.custom_draft = None;
         return;
     };
+    let current_kind = std::mem::discriminant(&dialog);
+    let previous_kind = ctx.data(|d| d.get_temp::<std::mem::Discriminant<Dialog>>(last_dialog_id));
+    let just_opened = previous_kind != Some(current_kind);
+    ctx.data_mut(|d| d.insert_temp(last_dialog_id, current_kind));
     // Properties ▸ Fonts shows the fonts as they are now, after any content edits.
     if let (Dialog::Properties(PropsTab::Fonts), Some((_, id))) = (dialog, app.active_ids()) {
         app.session.refresh_fonts(id);
@@ -141,7 +147,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             dialog_footer(ui, app, dialog, &mut req);
         }
     });
-    finish_dialog(app, dialog, modal.should_close(), &mut req);
+    let should_close = !just_opened && modal.should_close();
+    finish_dialog(app, dialog, should_close, &mut req);
 }
 
 /// The dialog's content. Returns `false` when it has its own buttons and no footer is wanted.

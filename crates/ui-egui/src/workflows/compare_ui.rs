@@ -52,34 +52,85 @@ pub fn colour(kind: Kind) -> Color32 {
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     ui.label(egui::RichText::new(tl!("Compare Files")).font(theme::semibold(18.0)));
     ui.add_space(8.0);
-    let Some((_, new)) = app.active_ids() else { return (false, true) };
-    let others: Vec<(DocId, String)> =
-        app.views.iter().filter(|v| v.id != new).filter_map(|v| app.session.get(v.id).map(|d| (d.id, d.name.clone()))).collect();
-    if app.compare_old.is_none_or(|o| !others.iter().any(|(id, _)| *id == o)) {
+    let all_docs: Vec<(DocId, String)> = app.views.iter().filter_map(|v| app.session.get(v.id).map(|d| (d.id, d.name.clone()))).collect();
+    if app.compare_new.is_none_or(|n| !all_docs.iter().any(|(id, _)| *id == n)) {
+        app.compare_new = app.active_ids().map(|(_, id)| id).or_else(|| all_docs.first().map(|(id, _)| *id));
+    }
+    let others: Vec<(DocId, String)> = all_docs.iter().filter(|(id, _)| Some(*id) != app.compare_new).cloned().collect();
+    if app.compare_old.is_none_or(|o| !all_docs.iter().any(|(id, _)| *id == o)) {
         app.compare_old = others.first().map(|(id, _)| *id);
     }
-    let new_name = app.session.get(new).map(|d| d.name.clone()).unwrap_or_default();
-    egui::Grid::new("compare-files").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+    let mut pick_old = false;
+    let mut pick_new = false;
+    let mut swap = false;
+    egui::Grid::new("compare-files").num_columns(3).spacing([12.0, 10.0]).show(ui, |ui| {
         ui.label(tl!("Old file:"));
-        let shown =
-            others.iter().find(|(id, _)| Some(*id) == app.compare_old).map_or(tl!("Open the older version first").to_string(), |(_, n)| n.clone());
-        craft_ui::ComboBox::from_id_salt("compare-old").selected_text(shown).width(320.0).show_ui(ui, |ui| {
-            for (id, n) in &others {
+        let shown_old =
+            all_docs.iter().find(|(id, _)| Some(*id) == app.compare_old).map_or(tl!("Select an old file").to_string(), |(_, n)| n.clone());
+        craft_ui::ComboBox::from_id_salt("compare-old").selected_text(shown_old).width(260.0).show_ui(ui, |ui| {
+            for (id, n) in &all_docs {
                 ui.selectable_value(&mut app.compare_old, Some(*id), n);
             }
         });
+        if ui.button(tl!("Browse…")).on_hover_text(tl!("Choose a PDF from your computer")).clicked() {
+            pick_old = true;
+        }
         ui.end_row();
+
+        ui.label("");
+        if ui.button(tl!("⇄ Swap files")).on_hover_text(tl!("Swap old and new files")).clicked() {
+            swap = true;
+        }
+        ui.label("");
+        ui.end_row();
+
         ui.label(tl!("New file:"));
-        ui.label(egui::RichText::new(new_name).strong());
+        let shown_new = all_docs.iter().find(|(id, _)| Some(*id) == app.compare_new).map_or(tl!("Select a new file").to_string(), |(_, n)| n.clone());
+        craft_ui::ComboBox::from_id_salt("compare-new").selected_text(shown_new).width(260.0).show_ui(ui, |ui| {
+            for (id, n) in &all_docs {
+                ui.selectable_value(&mut app.compare_new, Some(*id), n);
+            }
+        });
+        if ui.button(tl!("Browse…")).on_hover_text(tl!("Choose a PDF from your computer")).clicked() {
+            pick_new = true;
+        }
         ui.end_row();
     });
+
+    if swap {
+        std::mem::swap(&mut app.compare_old, &mut app.compare_new);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if pick_old {
+        app.ask(crate::platform::pickers::Ask::File(PdfCraftApp::open_picker()), None, |app, paths| {
+            if let Some(path) = paths.first().and_then(|p| p.to_str()) {
+                app.open_path(path);
+                if let Some((_, id)) = app.active_ids() {
+                    app.compare_old = Some(id);
+                }
+            }
+        });
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if pick_new {
+        app.ask(crate::platform::pickers::Ask::File(PdfCraftApp::open_picker()), None, |app, paths| {
+            if let Some(path) = paths.first().and_then(|p| p.to_str()) {
+                app.open_path(path);
+                if let Some((_, id)) = app.active_ids() {
+                    app.compare_new = Some(id);
+                }
+            }
+        });
+    }
+
     ui.add_space(4.0);
     ui.label(egui::RichText::new(tl!("Text is compared word by word; the differences are shown on the new file.")).small().color(t.text_muted));
     ui.add_space(10.0);
     let (mut go, mut cancel) = (false, false);
+    let can_compare = app.compare_old.is_some() && app.compare_new.is_some() && app.compare_old != app.compare_new;
     ui.horizontal(|ui| {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(app.compare_old.is_some(), |ui| widgets::pill_button(ui, tl!("Compare"), true)).inner.clicked() {
+            if ui.add_enabled_ui(can_compare, |ui| widgets::pill_button(ui, tl!("Compare"), true)).inner.clicked() {
                 go = true;
             }
             if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
@@ -203,8 +254,22 @@ impl PdfCraftApp {
         if self.split.is_some() {
             self.split_saved = self.split.take();
         }
-        let Some((i, new)) = self.active_ids() else { return };
-        let Some(old) = self.compare_old else { return };
+        let old = match self.compare_old {
+            Some(id) => id,
+            None => return,
+        };
+        let new = match self.compare_new.or_else(|| self.active_ids().map(|(_, id)| id)) {
+            Some(id) => id,
+            None => return,
+        };
+        if old == new {
+            self.notify_tr("Please choose two different files to compare");
+            return;
+        }
+        if let Some(pos) = self.views.iter().position(|v| v.id == new) {
+            self.active = Some(pos);
+        }
+        let Some((i, _)) = self.active_ids() else { return };
         match self.session.compare(old, new) {
             Ok(result) => {
                 let visual = self.session.compare_visual(old, new, 72.0).unwrap_or_default();

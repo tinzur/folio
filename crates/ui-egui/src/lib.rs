@@ -611,7 +611,10 @@ pub struct PdfCraftApp {
     pub pdfa: standards_ui::PdfaState,
     /// Compare files: the chosen older document and the last result.
     pub compare_old: Option<DocId>,
+    pub compare_new: Option<DocId>,
     pub compare: Option<compare_ui::CompareState>,
+    /// Top bar / tab strip height in points.
+    pub top_bar_size: f32,
     /// The JavaScript console and the Document JavaScripts draft.
     pub js_console: js_ui::JsConsole,
     pub doc_js: js_ui::DocJsDraft,

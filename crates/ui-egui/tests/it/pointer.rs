@@ -1296,6 +1296,7 @@ fn a_right_click_on_a_field_over_a_link_opens_no_link_menu() {
 fn a_fields_tooltip_shows_beside_the_open_palette() {
     let mut h = open(commented_text_field_pdf(), "150", false);
     h.state_mut().palette_open = true;
+    h.state_mut().palette_query = "print".into();
     h.run_steps(4);
     let palette = h.ctx.memory(|m| m.area_rect(egui::Id::unique("palette"))).expect("palette shown");
     let on_field = at(&h, 60.0, 210.0);

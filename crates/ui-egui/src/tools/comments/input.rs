@@ -272,7 +272,8 @@ fn select_input(
     if resp.clicked() && on_page {
         // A click elsewhere (a link beneath text highlighting included: it follows the link; a
         // form field; added text) leaves comments unselected.
-        match owner {
+        let target = owner.or_else(|| pointer.and_then(|p| cx.comment_at(p)).map(|a| (a, CommentPart::Body)));
+        match target {
             Some((a, _)) => {
                 cv.selected = Some((cx.page, a.index));
                 cv.reveal = true;

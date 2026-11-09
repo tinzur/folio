@@ -339,6 +339,8 @@ impl PdfCraftApp {
             "view.theme.light" => self.set_theme_preference(ThemePreference::Light),
             "view.theme.dark" => self.set_theme_preference(ThemePreference::Dark),
             "view.theme.sepia" => self.set_theme_preference(ThemePreference::Sepia),
+            "view.theme.nordic" => self.set_theme_preference(ThemePreference::Nordic),
+            "view.theme.dracula" => self.set_theme_preference(ThemePreference::Dracula),
             "view.monochrome" => self.set_monochrome(!self.monochrome),
             "view.fit_visible" => {
                 if let Some(i) = self.active

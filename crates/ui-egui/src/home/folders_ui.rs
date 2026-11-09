@@ -300,11 +300,11 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             if !app.pinned.folders.is_empty() && widgets::ghost_button(ui, "trash-2", tl!("Unpin all")).clicked() {
                 unpin_all = true;
             }
-            if icons::button(ui, "layout-grid", 24.0, app.recent_grid, tl!("Grid view")).clicked() {
-                app.recent_grid = true;
+            if icons::button(ui, "layout-grid", 24.0, app.folder_grid, tl!("Grid view")).clicked() {
+                app.folder_grid = true;
             }
-            if icons::button(ui, "list", 24.0, !app.recent_grid, tl!("List view")).clicked() {
-                app.recent_grid = false;
+            if icons::button(ui, "list", 24.0, !app.folder_grid, tl!("List view")).clicked() {
+                app.folder_grid = false;
             }
         });
     });
@@ -377,7 +377,7 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         }
         let expanded = app.pinned.expanded.contains(folder);
         let shown = if expanded { listing.files.len() } else { listing.files.len().min(SHOWN) };
-        if app.recent_grid {
+        if app.folder_grid {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
                 for f in listing.files.iter().take(shown) {

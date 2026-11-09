@@ -83,6 +83,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     ThemePreference::Light => ("sun", tl!("Light gray")),
                     ThemePreference::Dark => ("moon", tl!("Dark gray")),
                     ThemePreference::Sepia => ("book-open", tl!("Sepia")),
+                    ThemePreference::Nordic => ("snowflake", tl!("Nordic")),
+                    ThemePreference::Dracula => ("sparkles", tl!("Dracula")),
                 };
                 let theme_tip = format!("{}: {theme_label}", tl!("Display theme"));
                 let theme_resp = icons::button(ui, theme_icon, button, false, &theme_tip);
@@ -90,8 +92,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.execute(match app.theme_preference {
                         ThemePreference::System => "view.theme.light",
                         ThemePreference::Light => "view.theme.dark",
-                        ThemePreference::Dark => "view.theme.sepia",
-                        ThemePreference::Sepia => "view.theme.system",
+                        _ => "view.theme.system",
                     });
                 }
                 egui::Popup::context_menu(&theme_resp).id(theme_resp.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
@@ -303,8 +304,37 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 ui.add_space(4.0);
                 let tip = crate::commands::command_tip(ui.ctx(), tl!("Open a PDF ({key})"), "file.open");
-                if widgets::ghost_button_sized(ui, "plus", tl!("Open"), tab_h).on_hover_text(tip).clicked() {
+                let open_resp = widgets::ghost_button_sized(ui, "plus", tl!("Open"), tab_h).on_hover_text(tip);
+                let mut open_file = None;
+                let mut trigger_browse = false;
+                egui::Popup::menu(&open_resp).id(open_resp.id.with("open_dropdown")).show(|ui| {
+                    ui.set_min_width(220.0);
+                    if ui.add(egui::Button::new(egui::RichText::new(tl!("Browse files…")).font(theme::medium(12.5))).frame(false)).clicked() {
+                        trigger_browse = true;
+                        ui.close();
+                    }
+                    if !app.recent.is_empty() {
+                        ui.separator();
+                        ui.label(egui::RichText::new(tl!("Recent files")).font(theme::semibold(11.0)).color(t.text_muted));
+                        for r in app.recent.iter().take(8) {
+                            let name = std::path::Path::new(&r.path).file_name().and_then(|n| n.to_str()).unwrap_or(&r.path);
+                            let item_btn = ui.add(
+                                egui::Button::new(egui::RichText::new(name).font(theme::regular(12.0)))
+                                    .frame(false)
+                                    .wrap_mode(egui::TextWrapMode::Truncate),
+                            );
+                            if item_btn.on_hover_text(&r.path).clicked() {
+                                open_file = Some(r.path.clone());
+                                ui.close();
+                            }
+                        }
+                    }
+                });
+                if trigger_browse {
                     app.open_dialog();
+                }
+                if let Some(path) = open_file {
+                    app.open_path(&path);
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if !controls.right.is_empty() {

@@ -70,7 +70,7 @@ pub(crate) fn hit(cx: &PageCx<'_>, view: &DocView, p: Pos2, on_link: bool) -> Op
     let pick: fn(&Annotation) -> bool = match cx.tool {
         QuickTool::Select => |_| true,
         QuickTool::Fill(_) => |a| a.fill_sign,
-        QuickTool::Comment(tool) if (tool.draws() || tool.clicks_points()) && tool != CommentTool::Eraser => {
+        QuickTool::Comment(tool) if tool != CommentTool::Eraser => {
             // A polygon being clicked out keeps its clicks, even near an old shape's handle.
             if view.comments.gesture.is_some() {
                 return None;
@@ -79,7 +79,8 @@ pub(crate) fn hit(cx: &PageCx<'_>, view: &DocView, p: Pos2, on_link: bool) -> Op
         }
         _ => return None,
     };
-    let bodies = matches!(cx.tool, QuickTool::Select | QuickTool::Fill(_));
+    let bodies = matches!(cx.tool, QuickTool::Select | QuickTool::Fill(_))
+        || matches!(cx.tool, QuickTool::Comment(tool) if tool != CommentTool::Eraser && view.comments.gesture.is_none());
     if let Some(a) = view.comments.selected.filter(|(page, _)| *page == cx.page).and_then(|(_, i)| cx.get(i)).filter(|a| pick(a) && cx.allowed) {
         if reaches_points(cx.tool)
             && reshapable(a)
@@ -107,7 +108,9 @@ pub(crate) fn hit(cx: &PageCx<'_>, view: &DocView, p: Pos2, on_link: bool) -> Op
     let markup = is_markup(&a.subtype);
     let icon = if cx.allowed && !markup { egui::CursorIcon::Move } else { egui::CursorIcon::PointingHand };
     // Text markup does not move: a click selects it, a drag across it selects the text.
-    Some(Hit { declines_drag: markup, ..Hit::new(Owner::Comment { index: a.index, part: CommentPart::Body }, layer(a), icon) })
+    // Comment drawing tools also do not drag-move: a click selects to style, a drag draws or highlights.
+    let declines_drag = markup || matches!(cx.tool, QuickTool::Comment(_));
+    Some(Hit { declines_drag, ..Hit::new(Owner::Comment { index: a.index, part: CommentPart::Body }, layer(a), icon) })
 }
 
 /// The layer a comment's body lies on: what a drag moves whole (a note, a shape, a signature, a

@@ -9,7 +9,7 @@ use crate::theme::{self, ThemeKind, ThemePreference, Tokens};
 
 /// The themes each card offers. One of each today; a new theme is one more row here.
 pub const LIGHT_THEMES: &[(ThemeKind, &str)] = &[(ThemeKind::Light, "Light gray")];
-pub const DARK_THEMES: &[(ThemeKind, &str)] = &[(ThemeKind::Dark, "Dark gray")];
+pub const DARK_THEMES: &[(ThemeKind, &str)] = &[(ThemeKind::Dark, "Dark gray"), (ThemeKind::Nordic, "Nordic"), (ThemeKind::Dracula, "Dracula")];
 
 fn mode_label(preference: ThemePreference) -> &'static str {
     match preference {
@@ -17,6 +17,8 @@ fn mode_label(preference: ThemePreference) -> &'static str {
         ThemePreference::Light => "Light",
         ThemePreference::Dark => "Dark",
         ThemePreference::Sepia => "Sepia",
+        ThemePreference::Nordic => "Nordic",
+        ThemePreference::Dracula => "Dracula",
     }
 }
 
@@ -26,6 +28,8 @@ fn mode_command(preference: ThemePreference) -> &'static str {
         ThemePreference::Light => "view.theme.light",
         ThemePreference::Dark => "view.theme.dark",
         ThemePreference::Sepia => "view.theme.sepia",
+        ThemePreference::Nordic => "view.theme.nordic",
+        ThemePreference::Dracula => "view.theme.dracula",
     }
 }
 
@@ -110,7 +114,10 @@ fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(The
                     }
                 });
                 ui.add_space(4.0);
-                let shown = themes.first().map_or(ThemeKind::Light, |(kind, _)| *kind);
+                let shown = themes
+                    .iter()
+                    .find(|(kind, _)| *kind == t.kind)
+                    .map_or_else(|| themes.first().map_or(ThemeKind::Light, |(kind, _)| *kind), |(kind, _)| *kind);
                 preview(ui, shown, ui.available_width(), mono);
             },
         );
@@ -149,7 +156,14 @@ pub(crate) fn preferences_section_with_context(
     ui.horizontal(|ui| {
         let label = ctx.label(ui, tl!("Appearance mode"), theme::regular(13.0), t.text);
         let combo = craft_ui::ComboBox::from_id_salt("appearance-mode").selected_text(tl!(mode_label(app.theme_preference))).show_ui(ui, |ui| {
-            for preference in [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark, ThemePreference::Sepia] {
+            for preference in [
+                ThemePreference::System,
+                ThemePreference::Light,
+                ThemePreference::Dark,
+                ThemePreference::Sepia,
+                ThemePreference::Nordic,
+                ThemePreference::Dracula,
+            ] {
                 if ui.selectable_label(app.theme_preference == preference, tl!(mode_label(preference))).clicked() {
                     app.execute(mode_command(preference));
                     ui.close();
@@ -167,7 +181,7 @@ pub(crate) fn preferences_section_with_context(
     ctx.label_secondary(ui, tl!("Black-and-white chrome over the current Light or Dark theme. The page keeps its own colours."), t);
     ui.add_space(4.0);
     let light_active = app.theme == ThemeKind::Light;
-    let dark_active = app.theme == ThemeKind::Dark;
+    let dark_active = matches!(app.theme, ThemeKind::Dark | ThemeKind::Nordic | ThemeKind::Dracula);
     let light_title = tl!("Light theme");
     let dark_title = tl!("Dark theme");
     let light_matches = crate::dialogs::preferences::find_match_ranges(light_title, ctx.query).len();

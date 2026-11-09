@@ -1340,13 +1340,24 @@ fn zoom_menu_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
     let percent = format!("{:.0}%", view.zoom * 100.0);
     let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
     let align = popup_align_for(app.hotbar.dock.as_deref(), is_vert);
-    let resp = ui
-        .add_sized(
-            [cell, cell],
-            egui::Button::new(egui::RichText::new(percent).font(crate::theme::medium(10.0)).color(crate::theme::Tokens::get(ui.ctx()).text)),
-        )
-        .on_hover_text(tl!("Zoom presets and fit options"))
-        .on_hover_cursor(egui::CursorIcon::PointingHand);
+    let font_size = if cell < 30.0 {
+        8.5
+    } else if cell < 36.0 {
+        9.5
+    } else {
+        10.5
+    };
+    let mut resp = ui
+        .scope(|ui| {
+            ui.spacing_mut().button_padding = vec2(1.0, 1.0);
+            ui.add_sized(
+                [cell, cell.max(22.0)],
+                egui::Button::new(egui::RichText::new(percent).font(crate::theme::medium(font_size)).color(crate::theme::Tokens::get(ui.ctx()).text))
+                    .wrap_mode(egui::TextWrapMode::Extend),
+            )
+        })
+        .inner;
+    resp = resp.on_hover_text(tl!("Zoom presets and fit options")).on_hover_cursor(egui::CursorIcon::PointingHand);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Zoom")));
     egui::Popup::menu(&resp).align(align).show(|ui| {
         zoom_popup_content(view, ui);
@@ -1380,11 +1391,26 @@ fn page_indicator_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens,
     let labels: Vec<String> = app.session.get(id).map(|doc| doc.info.pages.iter().map(|p| p.label.clone()).collect()).unwrap_or_default();
     let view = &mut app.views[index];
     let cur_label = view.current_page_label(labels.get(view.current).map(String::as_str));
-    let text = if page_count > 0 { format!("{cur_label} / {page_count}") } else { cur_label };
     let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
     let align = popup_align_for(app.hotbar.dock.as_deref(), is_vert);
+    let is_compact = width < 48.0;
+    let (text, text_height, font_size) = if is_compact && page_count > 0 {
+        (format!("{cur_label}\n/{page_count}"), 28.0, 9.0)
+    } else if page_count > 0 {
+        (format!("{cur_label} / {page_count}"), 22.0, 10.5)
+    } else {
+        (cur_label, 22.0, 10.5)
+    };
     let resp = ui
-        .add_sized([width, 22.0], egui::Button::new(egui::RichText::new(text).font(crate::theme::regular(10.5)).color(t.text_muted)))
+        .scope(|ui| {
+            ui.spacing_mut().button_padding = vec2(1.0, 1.0);
+            ui.add_sized(
+                [width, text_height],
+                egui::Button::new(egui::RichText::new(text).font(crate::theme::regular(font_size)).color(t.text_muted))
+                    .wrap_mode(egui::TextWrapMode::Extend),
+            )
+        })
+        .inner
         .on_hover_text(tl!("Current page — click to jump"));
 
     egui::Popup::menu(&resp).align(align).show(|ui| {

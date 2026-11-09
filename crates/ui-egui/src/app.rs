@@ -142,6 +142,7 @@ impl PdfCraftApp {
             recent_limit: crate::RECENT_FILES_DEFAULT,
             recent_grid: false,
             pinned_grid: false,
+            folder_grid: false,
             incognito: false,
             home_show_pinned: true,
             home_show_recent: true,
@@ -799,18 +800,20 @@ impl eframe::App for PdfCraftApp {
         // never shortens it. It is reserved as a top band here and drawn last, after the page.
         let top = ui.available_rect_before_wrap();
         // Focus mode: while reading (Select/Hand), hide the annotation row until the pointer
-        // reaches the edge or enters the row. A busy drawer/menu/dialog keeps it visible.
+        // reaches the edge or enters the row. A busy drawer/menu/dialog or active editing tool keeps it visible.
         let pointer = ctx.input(|i| i.pointer.hover_pos());
         let dock = self.hotbar.dock.as_deref().unwrap_or("top");
+        let edge_threshold = 32.0;
         let near_edge = pointer.is_some_and(|p| match dock {
-            "bottom" => p.y >= top.bottom() - 16.0,
-            "left" => p.x <= top.left() + 16.0,
-            "right" => p.x >= top.right() - 16.0,
-            _ => p.y <= top.top() + 16.0,
+            "bottom" => p.y >= top.bottom() - edge_threshold,
+            "left" => p.x <= top.left() + edge_threshold,
+            "right" => p.x >= top.right() - edge_threshold,
+            _ => p.y <= top.top() + edge_threshold,
         });
-        let in_band = self.strip_rect.is_some_and(|r| pointer.is_some_and(|p| r.contains(p)));
+        let in_band = self.strip_rect.is_some_and(|r| pointer.is_some_and(|p| r.expand(16.0).contains(p)));
         let busy = self.drawer_open || self.palette_open || self.dialog.is_some() || self.customizing_toolbar || self.all_tools_full;
-        let focus_hidden = self.focus_mode && !busy && !near_edge && !in_band;
+        let reading_only = matches!(self.quick_tool, QuickTool::Select | QuickTool::Hand);
+        let focus_hidden = self.focus_mode && reading_only && !busy && !near_edge && !in_band;
         let tool_row = if self.active.is_some() && !self.full_screen && !self.floating_toolbar && !focus_hidden {
             match dock {
                 "bottom" => {

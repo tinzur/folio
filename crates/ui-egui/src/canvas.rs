@@ -3407,6 +3407,7 @@ fn apply_frame_requests(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui, 
         }
         Some(PageMenuAction::TakeSnapshot) => {
             app.quick_tool = QuickTool::Snapshot;
+            app.notify_tr("Drag a rectangle around the area to copy");
         }
         Some(PageMenuAction::EditPdf) => {
             app.quick_tool = QuickTool::EditText;

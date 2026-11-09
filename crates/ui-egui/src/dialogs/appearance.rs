@@ -16,6 +16,7 @@ fn mode_label(preference: ThemePreference) -> &'static str {
         ThemePreference::System => "Use system setting",
         ThemePreference::Light => "Light",
         ThemePreference::Dark => "Dark",
+        ThemePreference::Sepia => "Sepia",
     }
 }
 
@@ -24,6 +25,7 @@ fn mode_command(preference: ThemePreference) -> &'static str {
         ThemePreference::System => "view.theme.system",
         ThemePreference::Light => "view.theme.light",
         ThemePreference::Dark => "view.theme.dark",
+        ThemePreference::Sepia => "view.theme.sepia",
     }
 }
 
@@ -147,7 +149,7 @@ pub(crate) fn preferences_section_with_context(
     ui.horizontal(|ui| {
         let label = ctx.label(ui, tl!("Appearance mode"), theme::regular(13.0), t.text);
         let combo = craft_ui::ComboBox::from_id_salt("appearance-mode").selected_text(tl!(mode_label(app.theme_preference))).show_ui(ui, |ui| {
-            for preference in [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark] {
+            for preference in [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark, ThemePreference::Sepia] {
                 if ui.selectable_label(app.theme_preference == preference, tl!(mode_label(preference))).clicked() {
                     app.execute(mode_command(preference));
                     ui.close();

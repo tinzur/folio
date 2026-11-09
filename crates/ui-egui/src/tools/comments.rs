@@ -239,7 +239,9 @@ impl CommentTool {
 
     /// Whether the line-thickness control applies.
     pub fn has_width(self) -> bool {
-        self.draws() || self.clicks_points() || matches!(self, Self::TextBox | Self::Callout)
+        self.draws()
+            || self.clicks_points()
+            || matches!(self, Self::TextBox | Self::Callout | Self::Highlight | Self::Underline | Self::StrikeOut | Self::Squiggly)
     }
 
     /// Text comments may have no border while retaining visible text or fill.

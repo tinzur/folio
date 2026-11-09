@@ -22,17 +22,47 @@ pub(crate) fn show(app: &mut PdfCraftApp, ctx: &egui::Context, main: Rect) {
         return;
     }
     let t = Tokens::get(ctx);
-    let top = app.strip_rect.map_or(main.top(), |r| r.bottom());
-    let left = main.left();
-    let height = (main.bottom() - top).max(0.0);
-    let width = 344.0f32.min((main.right() - left).max(200.0));
+    let tab_strip_bottom = if cfg!(target_os = "macos") && app.integrated_titlebar { crate::chrome::MAC_TITLE_BAR } else { 38.0 };
+    let dock = app.hotbar.dock.as_deref().unwrap_or("top");
+    let (left, top, height, width) = match dock {
+        "left" => {
+            let left = app.strip_rect.map_or(main.left(), |r| r.right());
+            let top = tab_strip_bottom;
+            let height = (main.bottom() - top).max(0.0);
+            let width = 344.0f32.min((main.right() - left).max(200.0));
+            (left, top, height, width)
+        }
+        "right" => {
+            let top = tab_strip_bottom;
+            let height = (main.bottom() - top).max(0.0);
+            let right = app.strip_rect.map_or(main.right(), |r| r.left());
+            let width = 344.0f32.min((right - main.left()).max(200.0));
+            let left = (right - width).max(main.left());
+            (left, top, height, width)
+        }
+        "bottom" => {
+            let left = main.left();
+            let top = tab_strip_bottom;
+            let bottom = app.strip_rect.map_or(main.bottom(), |r| r.top());
+            let height = (bottom - top).max(0.0);
+            let width = 344.0f32.min((main.right() - left).max(200.0));
+            (left, top, height, width)
+        }
+        _ => {
+            let top = app.strip_rect.map_or(tab_strip_bottom, |r| r.bottom().max(tab_strip_bottom));
+            let left = main.left();
+            let height = (main.bottom() - top).max(0.0);
+            let width = 344.0f32.min((main.right() - left).max(200.0));
+            (left, top, height, width)
+        }
+    };
 
     // A click on the page while the drawer is open closes it; it also keeps page input from
     // reaching the document underneath.
     // The scrim covers everything under the row, side panels included, so the drawer is the only
     // thing in focus and a click anywhere else closes it.
     let screen = ctx.content_rect();
-    let scrim_rect = Rect::from_min_max(pos2(screen.left(), top), pos2(screen.right(), main.bottom()));
+    let scrim_rect = Rect::from_min_max(pos2(screen.left(), top), pos2(screen.right(), top + height));
     let scrim = egui::Area::new(egui::Id::unique("drawer-scrim")).order(egui::Order::Middle).fixed_pos(scrim_rect.min).show(ctx, |ui| {
         let (rect, resp) = ui.allocate_exact_size(scrim_rect.size(), Sense::click());
         ui.painter().rect_filled(rect, 0.0, Color32::from_black_alpha(if t.dark() { 90 } else { 45 }));
@@ -412,14 +442,59 @@ fn toolbar_editor(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         ui.label(egui::RichText::new(format!("{size:.0}")).font(theme::regular(11.0)).color(t.text_muted));
     });
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(tl!("Position")).font(theme::medium(12.0)).color(t.text));
+        for (dock, label) in [(None, "Top"), (Some("bottom"), "Bottom"), (Some("left"), "Left"), (Some("right"), "Right")] {
+            let on = app.hotbar.dock.as_deref() == dock;
+            if ui.selectable_label(on, tl!(label)).clicked() {
+                app.hotbar.dock = dock.map(str::to_owned);
+                if let Some(side) = dock {
+                    let _ = app.hotbar.place(side);
+                }
+            }
+        }
+    });
     ui.label(
         egui::RichText::new(tl!("Auto fills the first row and wraps the rest to a second, at most two; the controls stay in the first row."))
             .color(t.text_muted)
             .small(),
     );
     ui.add_space(6.0);
+    let query = app.all_tools_query.trim().to_lowercase();
     egui::ScrollArea::vertical().id_salt("drawer-toolbar-editor").auto_shrink([false, false]).show(ui, |ui| {
-        for tool in crate::comments::ALL {
+        let mut rotate_on = app.strip_tools.iter().any(|t| t == "view.rotate");
+        let matches_rotate = query.is_empty() || "rotate view".contains(&query) || tl!("Rotate view").to_lowercase().contains(&query);
+        if matches_rotate && ui.add(crate::widgets::checkbox(&mut rotate_on, tl!("Rotate view"))).changed() {
+            if rotate_on {
+                if !app.strip_tools.iter().any(|t| t == "view.rotate") {
+                    app.strip_tools.push("view.rotate".to_owned());
+                }
+            } else {
+                app.strip_tools.retain(|t| t != "view.rotate");
+            }
+        }
+        let mut tools: Vec<_> = crate::comments::ALL.to_vec();
+        if !query.is_empty() {
+            tools.retain(|tool| {
+                let s = tool.label().to_lowercase();
+                let i18n = tl!(tool.label()).to_lowercase();
+                let cmd = tool.command().to_lowercase();
+                s.contains(&query) || i18n.contains(&query) || cmd.contains(&query)
+            });
+            tools.sort_by_key(|tool| {
+                let s = tool.label().to_lowercase();
+                let i18n = tl!(tool.label()).to_lowercase();
+                if s == query || i18n == query {
+                    0
+                } else if s.starts_with(&query) || i18n.starts_with(&query) {
+                    1
+                } else {
+                    2
+                }
+            });
+        }
+        let any_match = !tools.is_empty();
+        for tool in tools {
             let id = tool.command();
             let mut on = app.strip_tools.iter().any(|t| t == id);
             if ui.add(crate::widgets::checkbox(&mut on, tl!(tool.label()))).changed() {
@@ -431,6 +506,10 @@ fn toolbar_editor(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     app.strip_tools.retain(|t| t != id);
                 }
             }
+        }
+        if !query.is_empty() && !any_match {
+            ui.add_space(8.0);
+            ui.label(egui::RichText::new(tl!("No tools match your search.")).color(t.text_muted));
         }
         ui.add_space(10.0);
         if ui.button(tl!("Reset to the default row")).clicked() {

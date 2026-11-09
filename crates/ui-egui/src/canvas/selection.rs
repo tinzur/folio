@@ -318,13 +318,41 @@ pub(super) fn selection_actions(ui: &mut egui::Ui, viewport: Rect, view: &mut Do
     false
 }
 
+fn opacity_slider(ui: &mut egui::Ui, id: egui::Id) -> Option<f64> {
+    ui.label(egui::RichText::new(tl!("Opacity")).strong());
+    let mut pct = ui.data(|d| d.get_temp::<f32>(id)).unwrap_or(80.0);
+    let changed = ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).step_by(5.0).suffix(" %").trailing_fill(true)).changed();
+    if changed {
+        ui.data_mut(|d| d.insert_temp(id, pct));
+        Some(f64::from(pct / 100.0))
+    } else {
+        None
+    }
+}
+
+fn thickness_slider(ui: &mut egui::Ui, id: egui::Id) -> Option<f64> {
+    ui.label(egui::RichText::new(tl!("Thickness")).strong());
+    let mut w = ui.data(|d| d.get_temp::<f32>(id)).unwrap_or(2.0);
+    let changed = ui.add(egui::Slider::new(&mut w, 0.5..=24.0).step_by(0.5).suffix(" pt").trailing_fill(true)).changed();
+    if changed {
+        ui.data_mut(|d| d.insert_temp(id, w));
+        Some(f64::from(w))
+    } else {
+        None
+    }
+}
+
 /// A compact colour panel for the selected highlight, underline or strikeout. Selecting one of
 /// those marks (a click on the text) opens it, so its colour can be changed without the full
 /// Comment Properties dialog. Returns the edit to apply, if a swatch was picked.
 pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &DocView, info: &DocInfo) -> Option<Edit> {
     let (page, index) = view.comments.selected?;
     let a = info.annotations.iter().find(|a| a.page == page && a.index == index && !a.is_reply())?;
-    if a.locked || !matches!(a.subtype.as_str(), "Highlight" | "Underline" | "StrikeOut" | "Squiggly") {
+    let has_stroke = matches!(
+        a.subtype.as_str(),
+        "Ink" | "Line" | "Square" | "Circle" | "Polygon" | "PolyLine" | "Highlight" | "Underline" | "StrikeOut" | "Squiggly"
+    );
+    if a.locked || !has_stroke {
         return None;
     }
     let xf = view.page_xform(page)?;
@@ -334,20 +362,28 @@ pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &DocView, i
     }
     let width = 232.0;
     let x = rect.left().clamp(viewport.left() + 8.0, (viewport.right() - width).max(viewport.left() + 8.0));
-    let y = if rect.bottom() + 132.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 132.0).max(viewport.top() + 6.0) };
+    let y = if rect.bottom() + 210.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 210.0).max(viewport.top() + 6.0) };
     let mut picked = None;
-    egui::Area::new(egui::Id::unique(("markup-colours", view.id.0, page, index))).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(
-        ui.ctx(),
-        |ui| {
-            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_max_width(width - 16.0);
-                ui.label(egui::RichText::new(tl!("Colour")).strong());
-                ui.add_space(4.0);
-                if let Some(colour) = comments::swatch_grid(ui, a.color.map(|c| c.map(f64::from))) {
-                    picked = Some(Edit::StyleAnnotation { page, index, color: Some(colour), opacity: None, width: None, endings: None });
+    let area_id = egui::Id::unique(("markup-colours", view.id.0, page, index));
+    egui::Area::new(area_id).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(ui.ctx(), |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| {
+            ui.set_max_width(width - 16.0);
+            ui.label(egui::RichText::new(tl!("Colour")).strong());
+            ui.add_space(4.0);
+            if let Some(colour) = comments::swatch_grid(ui, a.color.map(|c| c.map(f64::from))) {
+                picked = Some(Edit::StyleAnnotation { page, index, color: Some(colour), opacity: None, width: None, endings: None });
+            }
+            ui.add_space(6.0);
+            if let Some(opacity) = opacity_slider(ui, area_id.with("opacity")) {
+                picked = Some(Edit::StyleAnnotation { page, index, color: None, opacity: Some(opacity), width: None, endings: None });
+            }
+            if has_stroke {
+                ui.add_space(6.0);
+                if let Some(width) = thickness_slider(ui, area_id.with("thickness")) {
+                    picked = Some(Edit::StyleAnnotation { page, index, color: None, opacity: None, width: Some(width), endings: None });
                 }
-            });
-        },
-    );
+            }
+        });
+    });
     picked
 }

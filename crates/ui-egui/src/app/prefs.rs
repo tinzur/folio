@@ -153,6 +153,7 @@ impl PdfCraftApp {
         v["fill_text_color"] = serde_json::json!(self.fill_text_color);
         v["redact_prefs"] = self.redact_defaults.to_json();
         v["pinned_tools"] = serde_json::json!(self.pinned_tools);
+        v["pinned_files"] = serde_json::json!(self.pinned_files);
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
         v["show_page_edge_shadows"] = self.show_page_edge_shadows.into();
@@ -294,6 +295,10 @@ impl PdfCraftApp {
                 }
             }
             self.pinned_tools = tools;
+        }
+        if let Some(items) = v.get("pinned_files").and_then(serde_json::Value::as_array) {
+            let files: Vec<String> = items.iter().filter_map(|x| x.as_str().map(str::to_owned)).collect();
+            self.pinned_files = files;
         }
         if let Ok(preference) = serde_json::from_value::<ThemePreference>(v["theme"].clone()) {
             self.set_theme_preference(preference);

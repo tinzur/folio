@@ -123,6 +123,7 @@ impl PdfCraftApp {
             drawer_open: false,
             drawer_expanded: None,
             strip_tools: crate::default_strip_tools(),
+            rotate_clockwise: true,
             strip_rows: 1,
             strip_rows_auto: true,
             strip_rows_shown: 1,
@@ -139,6 +140,9 @@ impl PdfCraftApp {
             all_tools_tab: (None, false),
             recent: Vec::new(),
             recent_limit: crate::RECENT_FILES_DEFAULT,
+            recent_grid: false,
+            pinned_grid: false,
+            incognito: false,
             home_show_pinned: true,
             home_show_recent: true,
             home_show_quick: true,
@@ -168,6 +172,7 @@ impl PdfCraftApp {
             pinned: Default::default(),
             recent_check: Default::default(),
             pinned_tools: Vec::new(),
+            pinned_files: Vec::new(),
             pin_tool_search: String::new(),
             toast: None,
             toast_script: None,
@@ -466,6 +471,32 @@ impl PdfCraftApp {
             self.pin_tool(id)
         }
     }
+
+    /// Check whether a file is pinned to Home.
+    pub fn is_file_pinned(&self, path: &str) -> bool {
+        self.pinned_files.iter().any(|p| p == path)
+    }
+
+    /// Pin a file to Home.
+    pub fn pin_file(&mut self, path: &str) {
+        if !self.is_file_pinned(path) {
+            self.pinned_files.push(path.to_string());
+        }
+    }
+
+    /// Unpin a file from Home.
+    pub fn unpin_file(&mut self, path: &str) {
+        self.pinned_files.retain(|p| p != path);
+    }
+
+    /// Toggle a file's pinned state on Home.
+    pub fn toggle_pin_file(&mut self, path: &str) {
+        if self.is_file_pinned(path) {
+            self.unpin_file(path);
+        } else {
+            self.pin_file(path);
+        }
+    }
 }
 
 impl eframe::App for PdfCraftApp {
@@ -706,7 +737,8 @@ impl eframe::App for PdfCraftApp {
             // Full screen: the page on black, nothing else, as Acrobat's Full Screen Mode (Esc
             // or ⌘L to leave).
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| {
-                if let Some(i) = self.active {
+                let split_drawn = self.split.is_some() && crate::split::show(self, ui);
+                if !split_drawn && let Some(i) = self.active {
                     match compare_ui::side_by_side(self, i) {
                         Some((old, new)) => compare_ui::compare_area(self, old, new, ui),
                         None => canvas::document_area(self, i, ui),
@@ -747,7 +779,11 @@ impl eframe::App for PdfCraftApp {
             }
             (Some(id), Some(owner)) if id != owner => {
                 if let Some(i) = self.active {
-                    self.quick_tool = self.views[i].tool;
+                    if self.split.is_some() {
+                        self.views[i].tool = self.quick_tool;
+                    } else {
+                        self.quick_tool = self.views[i].tool;
+                    }
                 }
                 self.tool_owner = Some(id);
             }
@@ -763,17 +799,59 @@ impl eframe::App for PdfCraftApp {
         // never shortens it. It is reserved as a top band here and drawn last, after the page.
         let top = ui.available_rect_before_wrap();
         // Focus mode: while reading (Select/Hand), hide the annotation row until the pointer
-        // reaches the top edge or enters the row. A busy drawer/menu/dialog keeps it visible.
+        // reaches the edge or enters the row. A busy drawer/menu/dialog keeps it visible.
         let pointer = ctx.input(|i| i.pointer.hover_pos());
-        let near_top = pointer.is_some_and(|p| p.y <= top.top() + 12.0);
+        let dock = self.hotbar.dock.as_deref().unwrap_or("top");
+        let near_edge = pointer.is_some_and(|p| match dock {
+            "bottom" => p.y >= top.bottom() - 16.0,
+            "left" => p.x <= top.left() + 16.0,
+            "right" => p.x >= top.right() - 16.0,
+            _ => p.y <= top.top() + 16.0,
+        });
         let in_band = self.strip_rect.is_some_and(|r| pointer.is_some_and(|p| r.contains(p)));
-        let reading = matches!(self.quick_tool, QuickTool::Select | QuickTool::Hand);
         let busy = self.drawer_open || self.palette_open || self.dialog.is_some() || self.customizing_toolbar || self.all_tools_full;
-        let focus_hidden = self.focus_mode && reading && !busy && !near_top && !in_band;
+        let focus_hidden = self.focus_mode && !busy && !near_edge && !in_band;
         let tool_row = if self.active.is_some() && !self.full_screen && !self.floating_toolbar && !focus_hidden {
-            let height = crate::hotbar::strip_height(self, ui.available_width());
-            egui::Panel::top("tool_row").exact_size(height).frame(egui::Frame::NONE).show(ui, |_| {});
-            Some(egui::Rect::from_min_size(top.min, egui::vec2(top.width(), height)))
+            match dock {
+                "bottom" => {
+                    let height = crate::hotbar::strip_height(self, ui.available_width());
+                    let resp = egui::Panel::bottom("tool_row").exact_size(height).frame(egui::Frame::NONE).show(ui, |_| {});
+                    Some(resp.response.rect)
+                }
+                "left" => {
+                    let cell = self.hotbar.button_size.clamp(22.0, 64.0);
+                    let cols = if (!self.strip_rows_auto && self.strip_rows == 2)
+                        || (self.strip_rows_auto && (4.0 + 7.0 + self.strip_tools.len() as f32) * (cell + 2.0) + 60.0 > top.height())
+                    {
+                        2
+                    } else {
+                        1
+                    };
+                    self.strip_rows_shown = cols;
+                    let width = f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0;
+                    let resp = egui::Panel::left("tool_row").exact_size(width).frame(egui::Frame::NONE).show(ui, |_| {});
+                    Some(resp.response.rect)
+                }
+                "right" => {
+                    let cell = self.hotbar.button_size.clamp(22.0, 64.0);
+                    let cols = if (!self.strip_rows_auto && self.strip_rows == 2)
+                        || (self.strip_rows_auto && (4.0 + 7.0 + self.strip_tools.len() as f32) * (cell + 2.0) + 60.0 > top.height())
+                    {
+                        2
+                    } else {
+                        1
+                    };
+                    self.strip_rows_shown = cols;
+                    let width = f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0;
+                    let resp = egui::Panel::right("tool_row").exact_size(width).frame(egui::Frame::NONE).show(ui, |_| {});
+                    Some(resp.response.rect)
+                }
+                _ => {
+                    let height = crate::hotbar::strip_height(self, ui.available_width());
+                    egui::Panel::top("tool_row").exact_size(height).frame(egui::Frame::NONE).show(ui, |_| {});
+                    Some(egui::Rect::from_min_size(top.min, egui::vec2(top.width(), height)))
+                }
+            }
         } else {
             self.strip_rect = None;
             self.drawer_open = false;

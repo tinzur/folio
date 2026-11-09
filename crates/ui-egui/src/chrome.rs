@@ -82,6 +82,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     ThemePreference::System => ("monitor", tl!("Use system setting")),
                     ThemePreference::Light => ("sun", tl!("Light gray")),
                     ThemePreference::Dark => ("moon", tl!("Dark gray")),
+                    ThemePreference::Sepia => ("book-open", tl!("Sepia")),
                 };
                 let theme_tip = format!("{}: {theme_label}", tl!("Display theme"));
                 let theme_resp = icons::button(ui, theme_icon, button, false, &theme_tip);
@@ -89,7 +90,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.execute(match app.theme_preference {
                         ThemePreference::System => "view.theme.light",
                         ThemePreference::Light => "view.theme.dark",
-                        ThemePreference::Dark => "view.theme.system",
+                        ThemePreference::Dark => "view.theme.sepia",
+                        ThemePreference::Sepia => "view.theme.system",
                     });
                 }
                 egui::Popup::context_menu(&theme_resp).id(theme_resp.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));

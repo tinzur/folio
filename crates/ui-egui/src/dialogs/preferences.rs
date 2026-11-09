@@ -147,7 +147,9 @@ pub fn preference_card<R>(
     ctx: &mut PrefSearchContext,
     content: impl FnOnce(&mut egui::Ui, &mut PrefSearchContext) -> R,
 ) -> R {
-    let card_fill = if t.mono() {
+    let card_fill = if t.kind == ThemeKind::Sepia {
+        Color32::from_rgb(0xF4, 0xEC, 0xDE)
+    } else if t.mono() {
         if t.dark() { Color32::from_rgb(0x1E, 0x1E, 0x1E) } else { Color32::from_gray(0xF6) }
     } else if t.kind == ThemeKind::Light {
         Color32::from_rgb(0xF7, 0xF8, 0xFA)

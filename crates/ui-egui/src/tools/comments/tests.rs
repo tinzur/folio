@@ -338,6 +338,7 @@ fn other_colour_opens_the_picker_inside_the_quick_bar_popup() {
         },
         CommentPrefs::default(),
     );
+    h.ctx.set_fonts(theme::font_definitions());
     h.run();
     h.get_by_label("Colour").click();
     h.run();

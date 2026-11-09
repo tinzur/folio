@@ -328,7 +328,9 @@ impl PdfCraftApp {
             self.select_mode(self.default_mode);
             self.left_open = left_open;
         }
-        if let Some(p) = path {
+        if let Some(p) = path
+            && !self.incognito
+        {
             #[cfg(target_os = "macos")]
             macos_association::repair(std::path::Path::new(&p));
             self.recent.retain(|r| r.path != p);

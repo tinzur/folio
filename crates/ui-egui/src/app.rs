@@ -819,10 +819,11 @@ impl eframe::App for PdfCraftApp {
             "bottom" => p.y >= top.bottom() - edge_threshold,
             "left" => p.x <= top.left() + edge_threshold,
             "right" => p.x >= top.right() - edge_threshold,
-            _ => p.y <= top.top() + edge_threshold,
+            _ => p.y >= top.top() && p.y <= top.top() + edge_threshold,
         });
-        let in_band = self.strip_rect.is_some_and(|r| pointer.is_some_and(|p| r.expand(16.0).contains(p)));
-        let busy = self.drawer_open || self.palette_open || self.dialog.is_some() || self.customizing_toolbar || self.all_tools_full;
+        let popup_open = egui::Popup::is_any_open(&ctx);
+        let in_band = self.strip_rect.is_some_and(|r| pointer.is_some_and(|p| r.expand(28.0).contains(p)));
+        let busy = self.drawer_open || self.palette_open || self.dialog.is_some() || self.customizing_toolbar || self.all_tools_full || popup_open;
         let reading_only = matches!(self.quick_tool, QuickTool::Select | QuickTool::Hand);
         let focus_hidden = self.focus_mode && reading_only && !busy && !near_edge && !in_band;
         let tool_row = if self.active.is_some() && !self.full_screen && !self.floating_toolbar && !focus_hidden {
@@ -842,7 +843,7 @@ impl eframe::App for PdfCraftApp {
                         1
                     };
                     self.strip_rows_shown = cols;
-                    let width = f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0;
+                    let width = (f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0).max(if cols == 1 { 42.0 } else { 72.0 });
                     let resp = egui::Panel::left("tool_row").exact_size(width).frame(egui::Frame::NONE).show(ui, |_| {});
                     Some(resp.response.rect)
                 }
@@ -856,7 +857,7 @@ impl eframe::App for PdfCraftApp {
                         1
                     };
                     self.strip_rows_shown = cols;
-                    let width = f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0;
+                    let width = (f32::from(cols) * cell + f32::from(cols - 1) * 2.0 + 16.0).max(if cols == 1 { 42.0 } else { 72.0 });
                     let resp = egui::Panel::right("tool_row").exact_size(width).frame(egui::Frame::NONE).show(ui, |_| {});
                     Some(resp.response.rect)
                 }

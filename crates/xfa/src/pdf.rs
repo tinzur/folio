@@ -92,10 +92,12 @@ struct Signed {
     appearance: Option<Object>,
 }
 
-/// Most fields looked at for signatures.
+/// Most fields looked at for signatures, counted as they are queued.
 const MAX_FIELDS_SEARCHED: usize = 20_000;
 /// Deepest field nesting followed.
 const MAX_FIELD_DEPTH: usize = 32;
+/// Most `/Fields` and `/Kids` entries read while looking, repeats included.
+const MAX_KIDS_READ: usize = 1 << 20;
 
 /// The fields the document came with: the full name of each, and the signed signature fields by
 /// SOM path. Signing applications name a dynamic form's fields by their SOM path
@@ -107,21 +109,18 @@ fn existing_fields(doc: &Document, catalog: &Dict) -> (HashMap<String, Signed>, 
     let mut names = HashSet::new();
     let Some(acro) = catalog.get(b"AcroForm").map(|a| doc.resolve(a)) else { return (out, names) };
     let Some(fields) = acro.as_dict().and_then(|a| a.get(b"Fields")).map(|f| doc.resolve(f)) else { return (out, names) };
-    let mut stack: Vec<(Object, String, bool, usize)> =
-        fields.as_array().into_iter().flatten().map(|f| (f.clone(), String::new(), false, 0)).collect();
-    let mut seen = 0usize;
-    while let Some((field, prefix, parent_is_sig, depth)) = stack.pop() {
-        seen += 1;
-        if seen > MAX_FIELDS_SEARCHED {
-            break;
-        }
-        let field = doc.resolve(&field);
+    let mut walk = FieldQueue::default();
+    // The accumulated name is shared by the children it is queued for, not copied into each.
+    let top: std::rc::Rc<str> = "".into();
+    walk.queue(fields.as_array().map(Vec::as_slice).unwrap_or_default(), &top, false, 0);
+    while let Some((field, prefix, parent_is_sig, depth)) = walk.stack.pop() {
+        let field = doc.get(field);
         let Some(d) = field.as_dict() else { continue };
         if d.contains(NODE_KEY) {
             // Generated to name a signature field: only what it holds is looked at.
             if depth < MAX_FIELD_DEPTH {
-                let kids = d.get(b"Kids").map(|k| doc.resolve(k)).and_then(|k| k.as_array().cloned()).unwrap_or_default();
-                stack.extend(kids.into_iter().map(|k| (k, String::new(), false, depth + 1)));
+                let kids = d.get(b"Kids").map(|k| doc.resolve(k));
+                walk.queue(kids.as_deref().and_then(Object::as_array).map(Vec::as_slice).unwrap_or_default(), &top, false, depth + 1);
             }
             continue;
         }
@@ -136,28 +135,87 @@ fn existing_fields(doc: &Document, catalog: &Dict) -> (HashMap<String, Signed>, 
             continue;
         }
         let name = match d.get(b"T").map(|t| doc.resolve(t)).and_then(|t| t.as_string().map(|t| t.to_text())) {
-            Some(t) if prefix.is_empty() => t,
-            Some(t) => format!("{prefix}.{t}"),
+            Some(t) if prefix.is_empty() => t.into(),
+            Some(t) => format!("{prefix}.{t}").into(),
             None => prefix,
         };
         if !name.is_empty() {
-            names.insert(name.clone());
+            names.insert(name.to_string());
         }
         let is_sig = match d.name(b"FT") {
             Some(ft) => ft == b"Sig",
             None => parent_is_sig,
         };
-        let kids: Vec<Object> = d.get(b"Kids").map(|k| doc.resolve(k)).and_then(|k| k.as_array().cloned()).unwrap_or_default();
+        let kids = d.get(b"Kids").map(|k| doc.resolve(k));
+        let kids = kids.as_deref().and_then(Object::as_array).map(Vec::as_slice).unwrap_or_default();
         if is_sig && let Some(value) = d.get(b"V").filter(|v| doc.resolve(v).as_dict().is_some()) {
             // The appearance is on the field when it is its own widget, or on its one widget.
-            let appearance = d.get(b"AP").cloned().or_else(|| kids.iter().find_map(|k| doc.resolve(k).as_dict().and_then(|k| k.get(b"AP").cloned())));
-            out.entry(name.clone()).or_insert(Signed { value: value.clone(), appearance });
+            let appearance = d.get(b"AP").cloned().or_else(|| walk.find_map(kids, |k| doc.resolve(k).as_dict().and_then(|k| k.get(b"AP").cloned())));
+            out.entry(name.to_string()).or_insert(Signed { value: value.clone(), appearance });
         }
         if depth < MAX_FIELD_DEPTH {
-            stack.extend(kids.into_iter().map(|k| (k, name.clone(), is_sig, depth + 1)));
+            walk.queue(kids, &name, is_sig, depth + 1);
         }
     }
     (out, names)
+}
+
+/// The fields [`existing_fields`] still has to look at: each with its parent's full name,
+/// whether it inherits a signature type, and its depth.
+#[derive(Default)]
+struct FieldQueue {
+    stack: Vec<(ObjRef, std::rc::Rc<str>, bool, usize)>,
+    /// The shallowest depth each object number was queued at: [`Document::get`] finds a field
+    /// by number alone, so `5 0 R` and `5 1 R` are the same field.
+    seen: HashMap<u32, usize>,
+    /// Entries pushed onto `stack`, a field queued again at a shallower depth included.
+    pushed: usize,
+    /// `/Fields` and `/Kids` entries read while queuing.
+    read: usize,
+    /// `/Kids` entries read while searching for a signed field's appearance.
+    searched: usize,
+}
+
+impl FieldQueue {
+    /// The first of `kids` for which `f` gives a value. At most [`MAX_KIDS_READ`] entries are
+    /// looked at in all: signed fields sharing one long `/Kids` would otherwise each search all
+    /// of it. The searches have a budget of their own, apart from the one for queuing, so a
+    /// search can never leave a field's kids unqueued. Past the limit nothing more is looked at.
+    fn find_map<T>(&mut self, kids: &[Object], mut f: impl FnMut(&Object) -> Option<T>) -> Option<T> {
+        for k in kids {
+            self.searched += 1;
+            if self.searched > MAX_KIDS_READ {
+                return None;
+            }
+            if let Some(v) = f(k) {
+                return Some(v);
+            }
+        }
+        None
+    }
+
+    /// Queue the fields `kids` lists, each the first time it is listed. Fields and kids are
+    /// indirect references (ISO 32000-2 §12.7.3.1); anything else is skipped. A field listed
+    /// again, by this list or another, under any generation, takes no room, unless it is now
+    /// shallower than where it was queued: first reached at [`MAX_FIELD_DEPTH`], its kids would
+    /// otherwise never be read. So a field is queued at most once per depth, and at most
+    /// [`MAX_FIELDS_SEARCHED`] entries are ever queued: a field listing one kid many times, or
+    /// fields sharing one long `/Kids`, would otherwise queue it all on every visit. Reading the
+    /// repeats costs too, so at most [`MAX_KIDS_READ`] entries are read in all.
+    fn queue(&mut self, kids: &[Object], prefix: &std::rc::Rc<str>, is_sig: bool, depth: usize) {
+        for k in kids {
+            self.read += 1;
+            if self.pushed >= MAX_FIELDS_SEARCHED || self.read > MAX_KIDS_READ {
+                return;
+            }
+            let Some(r) = k.as_ref() else { continue };
+            if self.seen.get(&r.num).is_none_or(|&queued| depth < queued) {
+                self.seen.insert(r.num, depth);
+                self.pushed += 1;
+                self.stack.push((r, std::rc::Rc::clone(prefix), is_sig, depth));
+            }
+        }
+    }
 }
 
 impl Emitter<'_> {

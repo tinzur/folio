@@ -90,7 +90,12 @@ pub(super) fn js_tokens(js: &str) -> (Vec<Token>, Vec<Range<usize>>) {
                 loop {
                     match s.get(j) {
                         None => break 'scan,
-                        Some(b'\\') => j += 2,
+                        Some(b'\\') => {
+                            let Some(step) = js.get(j + 1..).and_then(|r| r.chars().next()).map(char::len_utf8) else {
+                                break 'scan;
+                            };
+                            j += 1 + step;
+                        }
                         Some(b'`') => break,
                         Some(_) => j += 1,
                     }
@@ -106,7 +111,14 @@ pub(super) fn js_tokens(js: &str) -> (Vec<Token>, Vec<Range<usize>>) {
                     match s.get(j) {
                         None => break None,
                         Some(_) if line_ends_at(s, j) => break None,
-                        Some(b'\\') => j += 2,
+                        Some(b'\\') => {
+                            if s.get(j + 1).is_none() || line_ends_at(s, j + 1) {
+                                j += 1;
+                                break None;
+                            }
+                            let step = js.get(j + 1..).and_then(|r| r.chars().next()).map_or(1, char::len_utf8);
+                            j += 1 + step;
+                        }
                         Some(b'/') if !class => break Some(j),
                         Some(b) => {
                             class = match b {
@@ -507,6 +519,10 @@ pub(super) fn eval_notation(src: &str, value_of: &dyn Fn(&str) -> f64) -> Option
                 *i += 1;
                 Some(*n)
             }
+            T::Op('+') => {
+                *i += 1;
+                factor(t, i, d + 1)
+            }
             T::Op('-') => {
                 *i += 1;
                 factor(t, i, d + 1).map(|v| -v)
@@ -525,32 +541,70 @@ pub(super) fn eval_notation(src: &str, value_of: &dyn Fn(&str) -> f64) -> Option
     (i == toks.len() && v.is_finite()).then_some(v)
 }
 
+/// Most field values one `AFSimple_Calculate` list may expand to (a form has some thousands).
+const MAX_EXPANDED_VALUES: usize = 1 << 20;
+
 /// The Calculate event: the new value, given the current values of the other fields
 /// (`values(name)` returns every field named `name` or below it, for groups).
 pub fn calculate(c: &Calculate, values: &dyn Fn(&str) -> Vec<String>) -> Option<String> {
     let num = |s: &String| make_number(s).unwrap_or(0.0);
     match c {
         Calculate::None => None,
+        // A product of no values is 0, as an empty sum, average, minimum or maximum is, not the
+        // empty product 1: a blank quantity × price row reads 0, and a total over the rows
+        // doesn't count it as 1. (The form's `values` leaves out a field that has no value.)
+        Calculate::Simple { op: CalcOp::Product, fields } if fields.iter().all(|f| values(f).is_empty()) => Some("0".into()),
         Calculate::Simple { op, fields } => {
-            let xs: Vec<f64> = fields.iter().flat_map(|f| values(f)).map(|v| num(&v)).collect();
+            // The values are folded as they are read, never collected: a group name listed many
+            // times would otherwise be held once per listing. A list that expands past
+            // MAX_EXPANDED_VALUES is not calculated.
+            let mut n = 0usize;
+            let xs = fields.iter().flat_map(|f| values(f)).map(|v| num(&v)).inspect(|_| n += 1).take(MAX_EXPANDED_VALUES + 1);
             let v = match op {
-                CalcOp::Sum => xs.iter().sum(),
-                CalcOp::Product => xs.iter().product(),
-                CalcOp::Average => {
-                    if xs.is_empty() {
-                        0.0
-                    } else {
-                        xs.iter().sum::<f64>() / xs.len() as f64
-                    }
-                }
-                CalcOp::Minimum => xs.iter().copied().fold(f64::INFINITY, f64::min),
-                CalcOp::Maximum => xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+                CalcOp::Sum | CalcOp::Average => xs.sum(),
+                CalcOp::Product => xs.product(),
+                CalcOp::Minimum => xs.fold(f64::INFINITY, f64::min),
+                CalcOp::Maximum => xs.fold(f64::NEG_INFINITY, f64::max),
             };
+            if n > MAX_EXPANDED_VALUES {
+                return None;
+            }
+            let v = if *op == CalcOp::Average { if n == 0 { 0.0 } else { v / n as f64 } } else { v };
             Some(if v.is_finite() { js_number(v) } else { "0".into() })
         }
         Calculate::Notation(expr) => {
             let v = eval_notation(expr, &|name| values(name).first().map(num).unwrap_or(0.0))?;
             Some(js_number(v))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn regex_scan_does_not_cross_line_break_after_backslash_or_split_utf8() {
+        let js = "x = /a\\\nthis.getField(\"price\").value / 2;";
+        assert_eq!(calculation_reads(js), vec!["price".to_owned()]);
+
+        let js_utf8 = "var r = /\\é/; event.value = this.getField(\"tax\").value;";
+        assert_eq!(calculation_reads(js_utf8), vec!["tax".to_owned()]);
+
+        let trailing_backslash = "event.value = this.getField(\"subtotal\").value + /unterminated\\";
+        assert_eq!(calculation_reads(trailing_backslash), vec!["subtotal".to_owned()]);
+        let template_trailing = "event.value = this.getField(\"shipping\").value + `unterminated\\";
+        assert_eq!(calculation_reads(template_trailing), vec!["shipping".to_owned()]);
+    }
+
+    #[test]
+    fn eval_notation_supports_unary_plus() {
+        let c = Calculate::Notation("+a + (+b)".to_owned());
+        let out = calculate(&c, &|name| match name {
+            "a" => vec!["3".to_owned()],
+            "b" => vec!["4".to_owned()],
+            _ => Vec::new(),
+        });
+        assert_eq!(out.as_deref(), Some("7"));
     }
 }

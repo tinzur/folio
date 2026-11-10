@@ -14,6 +14,7 @@
   <img alt="Written in Rust" src="https://img.shields.io/badge/written%20in-Rust-555555?style=flat-square">
   <img alt="Platform: macOS Apple Silicon · Windows · Linux" src="https://img.shields.io/badge/platform-macOS%20(Apple%20Silicon)%20%7C%20Windows%20%7C%20Linux-555555?style=flat-square">
   <img alt="100% Offline & Private" src="https://img.shields.io/badge/privacy-100%25%20offline%20%26%20private-555555?style=flat-square">
+  <a href="https://t.me/Tinzur"><img alt="Telegram: @Tinzur" src="https://img.shields.io/badge/Telegram-@Tinzur-24A1DE?style=flat-square&logo=telegram&logoColor=white"></a>
   <img alt="Release: v20.0.1" src="https://img.shields.io/badge/release-v20.0.1-555555?style=flat-square">
 </p>
 
@@ -167,16 +168,28 @@ Folio releases are built natively for all major desktop platforms. You can downl
 ---
 
 ### 🪟 Windows
-1. Download **`folio-20.0.1-windows-x86_64.zip`** (Intel/AMD) or **`folio-20.0.1-windows-arm64.zip`** from [**Releases**](https://github.com/TINZUR/pdfcraft/releases/latest).
-2. Extract the archive and launch `folio.exe`.
+1. Download **`folio-20.0.1-windows-x86_64.exe`** (standalone portable executable) or **`folio-20.0.1-windows-x86_64.zip`** from [**Releases**](https://github.com/tinzur/folio/releases/latest).
+2. Double-click `folio.exe` to run immediately — zero installation required!
 
 ---
 
 ### 🐧 Linux
-1. Download the **`.deb`** package (Debian / Ubuntu / Linux Mint) or portable **`.tar.gz`** from [**Releases**](https://github.com/TINZUR/pdfcraft/releases/latest).
-2. Install via:
+1. Download your preferred package format from [**Releases**](https://github.com/tinzur/folio/releases/latest):
+   - **`.deb`** (Debian, Ubuntu, Linux Mint, Pop!_OS)
+   - **`.rpm`** (Fedora, openSUSE, RHEL)
+   - **`.AppImage`** (Universal standalone portable binary)
+   - **`.tar.gz`** (Standard FHS archive)
+2. Run or install via your terminal:
    ```bash
+   # Debian / Ubuntu / Mint
    sudo dpkg -i folio-20.0.1-amd64.deb
+
+   # Fedora / RHEL
+   sudo rpm -i folio-20.0.1-x86_64.rpm
+
+   # Standalone AppImage (any Linux distro)
+   chmod +x folio-20.0.1-x86_64.AppImage
+   ./folio-20.0.1-x86_64.AppImage
    ```
 
 ---
@@ -201,8 +214,9 @@ cargo build --release --bin pdfcraft
 
 ## Credits & Heritage
 
-Folio is an independent, distraction-free reading shell created by **TINZUR**, built upon the remarkable open-source engineering of **[PdfCraft](https://github.com/storytold/pdfcraft)**:
+Folio is an independent, distraction-free reading shell created by **[TINZUR](https://t.me/Tinzur)**, built upon the remarkable open-source engineering of **[PdfCraft](https://github.com/storytold/pdfcraft)**:
 
+- **Author & Community**: [TINZUR](https://t.me/Tinzur) (Telegram: [@Tinzur](https://t.me/Tinzur))
 - **Original Project & Core Engine**: [storytold/pdfcraft](https://github.com/storytold/pdfcraft) (Licensed under `MIT OR Apache-2.0`).
 - **Rendering & Parser Foundation**: `hayro`, `cos`, and the `lopdf` ecosystem.
 - **GUI Framework**: Built on the immediate-mode [egui](https://github.com/emilk/egui) toolkit.

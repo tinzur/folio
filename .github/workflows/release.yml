@@ -67,14 +67,16 @@ jobs:
       - name: Build Release Binaries
         run: cargo build --release --locked -p pdfcraft -p pdfcraft-cli --target x86_64-pc-windows-msvc
 
-      - name: Package Windows Zip
+      - name: Package Windows Artifacts (Direct .exe + Portable .zip)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/release
           $ver = if ("${{ inputs.version }}") { "${{ inputs.version }}" } else { "20.0.1" }
+          $exePath = "dist/release/folio-$ver-windows-x86_64.exe"
           $zipPath = "dist/release/folio-$ver-windows-x86_64.zip"
           Copy-Item target/x86_64-pc-windows-msvc/release/pdfcraft.exe target/x86_64-pc-windows-msvc/release/folio.exe
           Copy-Item target/x86_64-pc-windows-msvc/release/pdfcraft-cli.exe target/x86_64-pc-windows-msvc/release/folio-cli.exe
+          Copy-Item target/x86_64-pc-windows-msvc/release/folio.exe $exePath
           Compress-Archive -Path target/x86_64-pc-windows-msvc/release/folio.exe, target/x86_64-pc-windows-msvc/release/folio-cli.exe, README.md, LICENSE-MIT, LICENSE-APACHE -DestinationPath $zipPath
           Get-ChildItem dist/release/
 
@@ -85,7 +87,45 @@ jobs:
           path: dist/release/*
 
   # -----------------------------------------------------------------------------------------------
-  # Linux (x86_64)
+  # Windows (ARM64)
+  # -----------------------------------------------------------------------------------------------
+  build-windows-arm64:
+    name: Windows (ARM64)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-pc-windows-msvc
+
+      - name: Build Release Binaries
+        run: cargo build --release --locked -p pdfcraft -p pdfcraft-cli --target aarch64-pc-windows-msvc
+
+      - name: Package Windows ARM64 (Direct .exe + Portable .zip)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/release
+          $ver = if ("${{ inputs.version }}") { "${{ inputs.version }}" } else { "20.0.1" }
+          $exePath = "dist/release/folio-$ver-windows-arm64.exe"
+          $zipPath = "dist/release/folio-$ver-windows-arm64.zip"
+          Copy-Item target/aarch64-pc-windows-msvc/release/pdfcraft.exe target/aarch64-pc-windows-msvc/release/folio.exe
+          Copy-Item target/aarch64-pc-windows-msvc/release/pdfcraft-cli.exe target/aarch64-pc-windows-msvc/release/folio-cli.exe
+          Copy-Item target/aarch64-pc-windows-msvc/release/folio.exe $exePath
+          Compress-Archive -Path target/aarch64-pc-windows-msvc/release/folio.exe, target/aarch64-pc-windows-msvc/release/folio-cli.exe, README.md, LICENSE-MIT, LICENSE-APACHE -DestinationPath $zipPath
+          Get-ChildItem dist/release/
+
+      - name: Upload Windows ARM64 Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-arm64
+          path: dist/release/*
+
+  # -----------------------------------------------------------------------------------------------
+  # Linux (x86_64: deb, rpm, tar)
   # -----------------------------------------------------------------------------------------------
   build-linux:
     name: Linux (x86_64)
@@ -94,10 +134,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Install system dependencies & packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev rpm
+          curl -sfL https://raw.githubusercontent.com/goreleaser/nfpm/main/scripts/install.sh | sudo bash
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -107,17 +148,14 @@ jobs:
       - name: Build Release Binaries
         run: cargo build --release --locked -p pdfcraft -p pdfcraft-cli --target x86_64-unknown-linux-gnu
 
-      - name: Package Linux Tarball
+      - name: Package Linux Formats (deb, rpm, tar)
+        env:
+          PDFCRAFT_SKIP_MODELS: "1"
+          CROSS_TARGET: x86_64-unknown-linux-gnu
         run: |
-          mkdir -p dist/release
-          VER="${{ inputs.version }}"
-          [ -z "$VER" ] && VER="20.0.1"
-          TAR_DIR="folio-$VER-linux-x86_64"
-          mkdir -p "$TAR_DIR"
-          cp target/x86_64-unknown-linux-gnu/release/pdfcraft "$TAR_DIR/folio"
-          cp target/x86_64-unknown-linux-gnu/release/pdfcraft-cli "$TAR_DIR/folio-cli"
-          cp README.md LICENSE-MIT LICENSE-APACHE "$TAR_DIR/"
-          tar -czf "dist/release/folio-$VER-linux-x86_64.tar.gz" "$TAR_DIR"
+          chmod +x packaging/linux/package.sh packaging/env.sh
+          ./packaging/linux/package.sh --skip-build --formats "deb rpm tar cli"
+          ls -lh dist/release/
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
@@ -130,7 +168,7 @@ jobs:
   # -----------------------------------------------------------------------------------------------
   publish-release:
     name: Publish GitHub Release
-    needs: [build-macos-arm64, build-windows, build-linux]
+    needs: [build-macos-arm64, build-windows, build-windows-arm64, build-linux]
     if: always() && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:

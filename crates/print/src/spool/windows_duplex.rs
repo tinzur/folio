@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use super::{Duplex, Job};
+use super::{two_sided, Duplex, Job};
 use crate::PrintError;
 
 /// Preserve an explicit duplex choice by borrowing `job` without calling `read`.
@@ -82,7 +82,7 @@ pub(super) fn job(job: &Job) -> Cow<'_, Job> {
         let value = craft_print::rgb::default_settings(&printer).map_err(failed).and_then(|settings| duplex(&settings));
         // Only this printer's driver is asked (craft-print `two_sided`), not every queue's, as
         // `printers()` would; a networked printer in power save could hold the job (#2192).
-        let value = supported_default(driver_default(value), || craft_print::two_sided(&printer));
+        let value = supported_default(driver_default(value), || two_sided(&printer));
         Ok((printer, value))
     })
 }

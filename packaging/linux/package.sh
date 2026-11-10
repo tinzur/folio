@@ -48,7 +48,7 @@ case "$ARCH" in
 esac
 export PDFCRAFT_MAINTAINER="${PDFCRAFT_MAINTAINER:-PdfCraft maintainers <pdfcraft@storyteller.ai>}"
 LABEL_SUFFIX="${PDFCRAFT_BUILD_LABEL:+-$PDFCRAFT_BUILD_LABEL}"
-BASENAME="pdfcraft-$VERSION$LABEL_SUFFIX-linux-$ARCH"
+BASENAME="folio-$VERSION$LABEL_SUFFIX-linux-$ARCH"
 
 echo "==> PdfCraft $VERSION$LABEL_SUFFIX for Linux $ARCH ($FORMATS)"
 
@@ -110,7 +110,7 @@ fi
 # The stripped pdfcraft-cli (and its opt-in MCP server) with the licences, for machines that never
 # open a window. Like the other formats it needs glibc >= the build host's.
 if has cli; then
-  CLI_NAME="pdfcraft-cli-$VERSION$LABEL_SUFFIX-linux-$ARCH"
+  CLI_NAME="folio-cli-$VERSION$LABEL_SUFFIX-linux-$ARCH"
   CLI_DIR="$WORK/cli/$CLI_NAME"
   mkdir -p "$CLI_DIR"
   cp "$STAGE/usr/bin/pdfcraft-cli" "$CLI_DIR/"

@@ -56,6 +56,7 @@ pub use types::{
 
 pub mod appearance;
 pub mod links;
+pub use links::{LinkAction, LinkStyle, LinkZoom};
 pub mod text_style;
 
 #[cfg(test)]

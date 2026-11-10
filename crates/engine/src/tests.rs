@@ -2132,7 +2132,7 @@ fn rect_comment(page: usize, rect: [f64; 4]) -> Edit {
     Edit::AddAnnotation(NewAnnotation {
         page,
         shape: Shape::Rectangle { rect },
-        style: Style { color: [1.0, 0.0, 0.0], opacity: 1.0, width: 2.0, fill: Some([1.0, 0.0, 0.0]) },
+        style: Style { color: [1.0, 0.0, 0.0], opacity: 1.0, width: 2.0, fill: Some([1.0, 0.0, 0.0]), ..Style::default() },
         contents: "Look here".into(),
         author: "Reviewer".into(),
     })
@@ -4106,6 +4106,7 @@ fn pasted_added_content_keeps_its_style_and_picture() {
         align: TextAlign::Center,
         aligns: Vec::new(),
         char_spacing: 0.0,
+        ink: None,
     };
     s.apply(id, Edit::AddText { page: 0, text: text.clone() }).unwrap();
     let copied = s.get(id).unwrap().added()[0].content.clone();
@@ -4414,8 +4415,8 @@ fn links_from_urls_and_link_edits() {
     assert_eq!(s.get(id).unwrap().links().len(), 1);
     // Link Properties and delete.
     let l = s.get(id).unwrap().links()[0].clone();
-    s.apply(id, Edit::SetLink { page: 0, index: l.index, rect: None, action: Some(LinkAction::Page(0)), style: None }).unwrap();
-    assert_eq!(s.get(id).unwrap().links()[0].action, LinkAction::Page(0));
+    s.apply(id, Edit::SetLink { page: 0, index: l.index, rect: None, action: Some(LinkAction::Page { page: 0, zoom: pdfcraft_annot::LinkZoom::Inherit }), style: None }).unwrap();
+    assert_eq!(s.get(id).unwrap().links()[0].action, LinkAction::Page { page: 0, zoom: pdfcraft_annot::LinkZoom::Inherit });
     s.apply(id, Edit::DeleteLink { page: 0, index: l.index }).unwrap();
     assert!(s.get(id).unwrap().links().is_empty());
     assert!(s.apply(id, Edit::RemoveLinks { pages: None }).is_err(), "nothing left to remove");
@@ -5969,7 +5970,7 @@ fn measurement_edits_are_transactional_and_honour_annotation_permissions() {
     assert!(session.get(id).unwrap().measurements().unwrap().measurements.is_empty());
     session.redo(id).unwrap();
     assert_eq!(session.get(id).unwrap().bytes, before);
-    let p = pdfcraft_cos::Permissions { bits: 0, owner: false };
+    let p = pdfcraft_cos::Permissions { bits: 0, owner: false, revision: 3 };
     assert_eq!(check_permission(&Edit::AddMeasurement(m), &p), Err(EditError::NotPermitted("comments")));
     assert_eq!(
         check_permission(
@@ -8029,6 +8030,7 @@ fn content_edit_keeps_pages_annotations_fields_and_links() {
         align: TextAlign::Left,
         aligns: Vec::new(),
         char_spacing: 0.0,
+        ink: None,
     };
     session.apply(id, Edit::AddText { page: 1, text }).unwrap();
     let after = session.get(id).unwrap();
@@ -8070,6 +8072,7 @@ fn content_refresh_lists_match_the_storages_an_edit_touches() {
                 align: TextAlign::Left,
                 aligns: Vec::new(),
                 char_spacing: 0.0,
+                ink: None,
             },
         },
         Edit::MoveObjects { page: 0, objects: vec![target(crate::ObjectKind::Added)], offset: [1.0, 0.0] },

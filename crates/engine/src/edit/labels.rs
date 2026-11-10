@@ -285,6 +285,7 @@ impl Edit {
             Edit::RemoveMarks { kind: MarkKind::Watermark } => Label::of("Remove watermark"),
             Edit::RemoveMarks { kind: MarkKind::Background } => Label::of("Remove background"),
             Edit::RemoveMarks { kind: MarkKind::PrinterMarks } => Label::of("Remove printer marks"),
+            Edit::AddPrinterMarks { .. } => Label::of("Add printer marks"),
             Edit::AddText { .. } => Label::of("Add text"),
             Edit::AddImage { .. } => Label::of("Add image"),
             Edit::UpdateContent { .. } => Label::of("Edit content"),

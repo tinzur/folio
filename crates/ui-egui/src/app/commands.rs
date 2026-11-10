@@ -63,12 +63,14 @@ impl PdfCraftApp {
             self.execute("page.combine");
             return;
         }
-        if self.active.is_none() {
-            self.pending_tool_on_open = Some(id);
-            self.open_dialog();
+        if id == "create" {
+            self.dialog = Some(crate::Dialog::CreatePdf);
             return;
         }
-        // The tool's panel shows, not the expanded All tools view over it.
+        if id == "compare" {
+            self.dialog = Some(crate::Dialog::CompareFiles);
+            return;
+        }
         self.all_tools_full = false;
         self.left = LeftPanel::Tool(id);
         self.reveal_tools();
@@ -77,6 +79,11 @@ impl PdfCraftApp {
                 view.open_organize();
             } else {
                 view.organize = false;
+            }
+        } else {
+            self.pending_tool_on_open = Some(id);
+            if !self.run_inline {
+                self.open_dialog();
             }
         }
         if id == "edit" {

@@ -29,8 +29,9 @@ fn section_label(ui: &mut egui::Ui, text: &str, t: &Tokens) {
 pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let column = ui.available_width().clamp(320.0, 1160.0);
-        let side = ((ui.available_width() - column) / 2.0).max(24.0);
+        let avail = ui.available_width();
+        let side = ((avail - 1160.0) / 2.0).max(24.0);
+        let column = (avail - 2.0 * side).clamp(320.0, 1160.0);
         ui.add_space(30.0);
         ui.horizontal(|ui| {
             ui.add_space(side);
@@ -129,12 +130,6 @@ fn quick_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     section_label(ui, tl!("Actions"), t);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(14.0, 8.0);
-        if widgets::ghost_button(ui, "files", tl!("Combine files")).clicked() {
-            app.execute("page.combine");
-        }
-        if widgets::ghost_button(ui, "layout-grid", tl!("Organize pages")).clicked() {
-            app.execute("page.organize");
-        }
         if widgets::ghost_button(ui, "pin", tl!("Pin a tool…")).clicked() {
             app.dialog = Some(crate::Dialog::PinTool);
         }
@@ -143,6 +138,9 @@ fn quick_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
     });
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PinnedToolDrag(usize);
 
 fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     if !app.home_show_pinned || (app.pinned_tools.is_empty() && app.pinned.folders.is_empty() && app.pinned_files.is_empty()) {
@@ -162,17 +160,33 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
 
     if !app.pinned_tools.is_empty() {
         let pinned = app.pinned_tools.clone();
+        let total = pinned.len();
         let mut unpin = None;
+        let mut reorder = None;
         if app.pinned_grid {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(10.0, 10.0);
-                for id in pinned {
-                    let Some(g) = catalog::group(&id) else { continue };
+                for (idx, id) in pinned.iter().enumerate() {
+                    let Some(g) = catalog::group(id) else { continue };
                     let label = tl!(g.label);
                     let card_w = 126.0;
                     let card_h = 76.0;
-                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
+                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click_and_drag());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+                    resp.dnd_set_drag_payload(PinnedToolDrag(idx));
+                    if resp.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                    }
+                    if let Some(from) = resp.dnd_hover_payload::<PinnedToolDrag>().map(|d| d.0)
+                        && from != idx
+                    {
+                        ui.painter().rect_stroke(rect, CornerRadius::same(10), Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+                    }
+                    if let Some(from) = resp.dnd_release_payload::<PinnedToolDrag>().map(|d| d.0)
+                        && from != idx
+                    {
+                        reorder = Some((from, idx));
+                    }
                     let hovered = ui.rect_contains_pointer(rect);
                     let fill = if resp.hovered() { t.hover } else { t.card };
                     ui.painter().rect(rect, CornerRadius::same(10), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
@@ -186,7 +200,7 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     widgets::row_text(ui, egui::pos2(rect.min.x + 12.0, rect.min.y + 50.0), label, theme::medium(11.5), t.text, card_w - 24.0);
                     if hovered {
                         let x_rect = Rect::from_center_size(rect.right_top() + vec2(-14.0, 14.0), vec2(20.0, 20.0));
-                        let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool-grid", &id)), Sense::click());
+                        let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool-grid", id)), Sense::click());
                         if x.hovered() {
                             ui.painter().rect_filled(x_rect, CornerRadius::same(5), t.pressed);
                         }
@@ -195,6 +209,20 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                             unpin = Some(g.id.to_string());
                         }
                     }
+                    resp.context_menu(|ui| {
+                        if idx > 0 && ui.button(tl!("Move left")).clicked() {
+                            reorder = Some((idx, idx - 1));
+                            ui.close();
+                        }
+                        if idx + 1 < total && ui.button(tl!("Move right")).clicked() {
+                            reorder = Some((idx, idx + 1));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Unpin from Home")).clicked() {
+                            unpin = Some(g.id.to_string());
+                            ui.close();
+                        }
+                    });
                     if resp.clicked() {
                         app.select_tool(g.id);
                     }
@@ -203,13 +231,27 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         } else {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
-                for id in pinned {
-                    let Some(g) = catalog::group(&id) else { continue };
+                for (idx, id) in pinned.iter().enumerate() {
+                    let Some(g) = catalog::group(id) else { continue };
                     let label = tl!(g.label);
                     let text_width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), theme::medium(12.0), t.text).size().x);
                     let width = (text_width + 58.0).clamp(112.0, ui.available_width().max(112.0));
-                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
+                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click_and_drag());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+                    resp.dnd_set_drag_payload(PinnedToolDrag(idx));
+                    if resp.dragged() {
+                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                    }
+                    if let Some(from) = resp.dnd_hover_payload::<PinnedToolDrag>().map(|d| d.0)
+                        && from != idx
+                    {
+                        ui.painter().rect_stroke(rect, CornerRadius::same(14), Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+                    }
+                    if let Some(from) = resp.dnd_release_payload::<PinnedToolDrag>().map(|d| d.0)
+                        && from != idx
+                    {
+                        reorder = Some((from, idx));
+                    }
                     let fill = if resp.hovered() { t.hover } else { t.card };
                     ui.painter().rect(rect, CornerRadius::same(14), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
                     icons::paint(
@@ -228,7 +270,7 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                         (width - 52.0).max(1.0),
                     );
                     let x_rect = Rect::from_center_size(rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
-                    let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool", &id)), Sense::click());
+                    let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool", id)), Sense::click());
                     x.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Unpin {label}")));
                     if x.hovered() {
                         ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
@@ -236,11 +278,29 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     icons::paint(ui, x_rect.shrink(6.0), "x", 12.0, t.icon);
                     if x.on_hover_text(tl!("Unpin from Home")).clicked() {
                         unpin = Some(g.id.to_string());
-                    } else if resp.clicked() {
+                    }
+                    resp.context_menu(|ui| {
+                        if idx > 0 && ui.button(tl!("Move left")).clicked() {
+                            reorder = Some((idx, idx - 1));
+                            ui.close();
+                        }
+                        if idx + 1 < total && ui.button(tl!("Move right")).clicked() {
+                            reorder = Some((idx, idx + 1));
+                            ui.close();
+                        }
+                        if ui.button(tl!("Unpin from Home")).clicked() {
+                            unpin = Some(g.id.to_string());
+                            ui.close();
+                        }
+                    });
+                    if resp.clicked() {
                         app.select_tool(g.id);
                     }
                 }
             });
+        }
+        if let Some((from, to)) = reorder {
+            app.move_pinned_tool(from, to);
         }
         if let Some(id) = unpin {
             app.unpin_tool(&id);

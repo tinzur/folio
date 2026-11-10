@@ -20,6 +20,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 #[test]
 fn state_operations_and_validation() {
     let mut app = PdfCraftApp::new();
+    app.pinned_tools.clear();
     assert!(!app.is_tool_pinned("redact"));
 
     // Pinning a valid tool
@@ -62,6 +63,7 @@ fn state_operations_and_validation() {
 #[test]
 fn persistence_round_trip_and_sanitization() {
     let mut app = PdfCraftApp::new();
+    app.pinned_tools.clear();
     app.pin_tool("protect");
     app.pin_tool("redact");
 
@@ -83,7 +85,9 @@ fn persistence_round_trip_and_sanitization() {
 
 #[test]
 fn home_pins_tools_only_when_there_are_some() {
-    let mut h = harness(|_| {});
+    let mut h = harness(|app| {
+        app.pinned_tools.clear();
+    });
     // Empty Home stays minimal; pinning is still one click away.
     assert!(h.query_by_label("Pinned").is_none(), "no empty Pinned section");
     h.get_by_label("Pin a tool…");
@@ -97,6 +101,14 @@ fn home_pins_tools_only_when_there_are_some() {
     h.run_steps(3);
     assert!(h.query_by_label("Pinned").is_none(), "the section goes when empty");
     h.get_by_label("Pin a tool…");
+}
+
+#[test]
+fn default_pinned_tools_present_on_fresh_install() {
+    let app = PdfCraftApp::new();
+    assert_eq!(app.pinned_tools, pdfcraft_ui_egui::default_pinned_tools());
+    assert!(app.is_tool_pinned("edit"));
+    assert!(app.is_tool_pinned("create"));
 }
 
 #[test]
@@ -140,6 +152,7 @@ fn clicking_pinned_tool_card_selects_it() {
 #[test]
 fn pin_tool_dialog_workflow() {
     let mut h = harness(|app| {
+        app.pinned_tools.clear();
         app.dialog = Some(Dialog::PinTool);
     });
     h.run_steps(3);
@@ -170,6 +183,7 @@ trailer << /Root 1 0 R >>
 #[test]
 fn drawer_pin_toggle_unpins_and_pins() {
     let mut h = harness(|app| {
+        app.pinned_tools.clear();
         app.open_bytes("pinned.pdf", None, ONE_PAGE.to_vec()).expect("fixture opens");
         app.pin_tool("redact");
     });
@@ -178,7 +192,11 @@ fn drawer_pin_toggle_unpins_and_pins() {
     assert!(h.state().is_tool_pinned("redact"));
 
     // Since redact is pinned, its tile's pin is labelled "Unpin from Home".
-    h.get_by_label("Unpin from Home").click();
+    let nodes: Vec<_> = h.query_all_by_label("Unpin from Home").collect();
+    for (i, n) in nodes.iter().enumerate() {
+        println!("Node {i}: rect={:?}", n.rect());
+    }
+    nodes.first().unwrap().click();
     h.run_steps(3);
 
     assert!(!h.state().is_tool_pinned("redact"));

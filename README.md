@@ -187,8 +187,8 @@ If you prefer building Folio from source, all you need is a standard Rust toolch
 
 ```bash
 # Clone the repository
-git clone https://github.com/TINZUR/pdfcraft.git
-cd pdfcraft
+git clone https://github.com/TINZUR/folio.git
+cd folio
 
 # Run in debug mode
 cargo run --bin pdfcraft -- path/to/document.pdf

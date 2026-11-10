@@ -220,7 +220,7 @@ fn main() -> eframe::Result {
     // executable's name: `target/debug/pdfcraft` reads "pdfcraft", and the packaged app is
     // correct because packaging/macos/package.sh copies the binary to
     // `Folio.app/Contents/MacOS/Folio`. To see "Folio" while developing, run a copy named
-    // `Folio` (see HANDOFF.md §4.6).
+    // `Folio`.
     set_process_name(pdfcraft_ui_egui::APP_NAME);
     // Windows: the update helper is a copy of this program started with `--finish-update`.
     #[cfg(windows)]

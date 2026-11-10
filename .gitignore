@@ -11,3 +11,17 @@ plan/
 /craft-fonts
 .claude/
 /.perch
+
+# Local scratch, personal notes, and internal roadmaps
+/HANDOFF.md
+/ROADMAP.md
+/docs/roadmap.md
+/docs/redesign-status.md
+/docs/ai-chat-design.md
+/docs/folio-fork-guide.md
+/docs/screenshots/
+/assets/brand/tinzur-qr-source.jpg
+*.pdf
+!crates/**/data/*.pdf
+!crates/sign/tests/data/*.pdf
+!crates/ui-egui/tests/data/*.pdf

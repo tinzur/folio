@@ -139,9 +139,6 @@ fn quick_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     });
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct PinnedToolDrag(usize);
-
 fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     if !app.home_show_pinned || (app.pinned_tools.is_empty() && app.pinned.folders.is_empty() && app.pinned_files.is_empty()) {
         return;
@@ -163,8 +160,6 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         let total = pinned.len();
         let mut unpin = None;
         let mut reorder = None;
-        let just_moved_id = ui.scope_id().with("home_pinned_just_moved");
-        let moved_info: Option<(String, f64)> = ui.data(|d| d.get_temp(just_moved_id));
 
         if app.pinned_grid {
             ui.horizontal_wrapped(|ui| {
@@ -174,73 +169,22 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     let label = tl!(g.label);
                     let card_w = 126.0;
                     let card_h = 76.0;
-                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click_and_drag());
+                    let (rect, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
-                    resp.dnd_set_drag_payload(PinnedToolDrag(idx));
-                    if resp.dragged() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-                    }
-                    let is_dragged = resp.dragged();
-                    let is_drop_target = resp.dnd_hover_payload::<PinnedToolDrag>().map(|d| d.0).filter(|&from| from != idx);
-                    let anim = if crate::motion::animated(ui.ctx()) { 0.16 } else { 0.0 };
-
-                    let target_shift = if let Some(from) = is_drop_target { if from > idx { 6.0 } else { -6.0 } } else { 0.0 };
-                    let shift_x = ui.ctx().animate_value_with_time(ui.scope_id().with(("shift_grid", id)), target_shift, anim);
-                    let lift_y = ui.ctx().animate_value_with_time(ui.scope_id().with(("lift_grid", id)), if is_dragged { -3.0 } else { 0.0 }, anim);
-                    let draw_rect = rect.translate(vec2(shift_x, lift_y));
-
-                    if let Some(from) = resp.dnd_release_payload::<PinnedToolDrag>().map(|d| d.0)
-                        && from != idx
-                    {
-                        reorder = Some((from, idx));
-                    }
                     let hovered = ui.rect_contains_pointer(rect);
-                    let fill = if is_dragged || resp.hovered() { t.hover } else { t.card };
-                    if is_dragged {
-                        let shadow = egui::Shadow { offset: [0, 8], blur: 16, spread: 2, color: t.page_shadow.gamma_multiply(0.7) };
-                        ui.painter().add(shadow.as_shape(draw_rect, CornerRadius::same(10)));
-                    }
-                    let stroke = if is_dragged || is_drop_target.is_some() { Stroke::new(1.5, t.accent) } else { Stroke::new(1.0, t.border) };
-                    ui.painter().rect(draw_rect, CornerRadius::same(10), fill, stroke, egui::StrokeKind::Inside);
-
-                    if let Some(from) = is_drop_target {
-                        let line_x = if from > idx { draw_rect.left() - 4.0 } else { draw_rect.right() + 4.0 };
-                        ui.painter().vline(line_x, (draw_rect.top() + 6.0)..=(draw_rect.bottom() - 6.0), Stroke::new(2.5, t.accent));
-                    }
-
-                    if let Some((ref moved_id, moved_time)) = moved_info
-                        && moved_id == id
-                    {
-                        let elapsed = (ui.input(|i| i.time) - moved_time) as f32;
-                        if elapsed < 0.35 {
-                            ui.ctx().request_repaint();
-                            let pulse = ((1.0 - elapsed / 0.35) * 0.9).clamp(0.0, 1.0);
-                            ui.painter().rect_stroke(
-                                draw_rect,
-                                CornerRadius::same(10),
-                                Stroke::new(2.0, t.accent.gamma_multiply(pulse)),
-                                egui::StrokeKind::Inside,
-                            );
-                        }
-                    }
-
+                    let fill = if resp.hovered() { t.hover } else { t.card };
+                    ui.painter().rect(rect, CornerRadius::same(10), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
                     icons::paint(
                         ui,
-                        Rect::from_center_size(egui::pos2(draw_rect.min.x + 24.0, draw_rect.min.y + 24.0), vec2(22.0, 22.0)),
+                        Rect::from_center_size(egui::pos2(rect.min.x + 24.0, rect.min.y + 24.0), vec2(22.0, 22.0)),
                         g.icon,
                         20.0,
                         t.accent,
                     );
-                    widgets::row_text(
-                        ui,
-                        egui::pos2(draw_rect.min.x + 12.0, draw_rect.min.y + 50.0),
-                        label,
-                        theme::medium(11.5),
-                        t.text,
-                        card_w - 24.0,
-                    );
+                    widgets::row_text(ui, egui::pos2(rect.min.x + 12.0, rect.min.y + 50.0), label, theme::medium(11.5), t.text, card_w - 24.0);
+
                     if hovered {
-                        let x_rect = Rect::from_center_size(draw_rect.right_top() + vec2(-14.0, 14.0), vec2(20.0, 20.0));
+                        let x_rect = Rect::from_center_size(rect.right_top() + vec2(-14.0, 14.0), vec2(20.0, 20.0));
                         let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool-grid", id)), Sense::click());
                         if x.hovered() {
                             ui.painter().rect_filled(x_rect, CornerRadius::same(5), t.pressed);
@@ -249,7 +193,32 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                         if x.on_hover_text(tl!("Unpin from Home")).clicked() {
                             unpin = Some(g.id.to_string());
                         }
+
+                        if idx + 1 < total {
+                            let next_rect = Rect::from_center_size(rect.right_top() + vec2(-34.0, 14.0), vec2(18.0, 18.0));
+                            let next = ui.interact(next_rect, ui.scope_id().with(("next-home-tool-grid", id)), Sense::click());
+                            if next.hovered() {
+                                ui.painter().rect_filled(next_rect, CornerRadius::same(4), t.pressed);
+                            }
+                            icons::paint(ui, next_rect.shrink(3.0), "chevron-right", 12.0, t.icon);
+                            if next.on_hover_text(tl!("Move right")).clicked() {
+                                reorder = Some((idx, idx + 1));
+                            }
+                        }
+
+                        if idx > 0 {
+                            let prev_rect = Rect::from_center_size(rect.right_top() + vec2(-52.0, 14.0), vec2(18.0, 18.0));
+                            let prev = ui.interact(prev_rect, ui.scope_id().with(("prev-home-tool-grid", id)), Sense::click());
+                            if prev.hovered() {
+                                ui.painter().rect_filled(prev_rect, CornerRadius::same(4), t.pressed);
+                            }
+                            icons::paint(ui, prev_rect.shrink(3.0), "chevron-left", 12.0, t.icon);
+                            if prev.on_hover_text(tl!("Move left")).clicked() {
+                                reorder = Some((idx, idx - 1));
+                            }
+                        }
                     }
+
                     resp.context_menu(|ui| {
                         if idx > 0 && ui.button(tl!("Move left")).clicked() {
                             reorder = Some((idx, idx - 1));
@@ -277,71 +246,27 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     let label = tl!(g.label);
                     let text_width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), theme::medium(12.0), t.text).size().x);
                     let width = (text_width + 58.0).clamp(112.0, ui.available_width().max(112.0));
-                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click_and_drag());
+                    let (rect, resp) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
-                    resp.dnd_set_drag_payload(PinnedToolDrag(idx));
-                    if resp.dragged() {
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
-                    }
-                    let is_dragged = resp.dragged();
-                    let is_drop_target = resp.dnd_hover_payload::<PinnedToolDrag>().map(|d| d.0).filter(|&from| from != idx);
-                    let anim = if crate::motion::animated(ui.ctx()) { 0.16 } else { 0.0 };
-
-                    let target_shift = if let Some(from) = is_drop_target { if from > idx { 5.0 } else { -5.0 } } else { 0.0 };
-                    let shift_x = ui.ctx().animate_value_with_time(ui.scope_id().with(("shift_pill", id)), target_shift, anim);
-                    let lift_y = ui.ctx().animate_value_with_time(ui.scope_id().with(("lift_pill", id)), if is_dragged { -2.0 } else { 0.0 }, anim);
-                    let draw_rect = rect.translate(vec2(shift_x, lift_y));
-
-                    if let Some(from) = resp.dnd_release_payload::<PinnedToolDrag>().map(|d| d.0)
-                        && from != idx
-                    {
-                        reorder = Some((from, idx));
-                    }
-                    let fill = if is_dragged || resp.hovered() { t.hover } else { t.card };
-                    if is_dragged {
-                        let shadow = egui::Shadow { offset: [0, 6], blur: 12, spread: 1, color: t.page_shadow.gamma_multiply(0.6) };
-                        ui.painter().add(shadow.as_shape(draw_rect, CornerRadius::same(14)));
-                    }
-                    let stroke = if is_dragged || is_drop_target.is_some() { Stroke::new(1.5, t.accent) } else { Stroke::new(1.0, t.border) };
-                    ui.painter().rect(draw_rect, CornerRadius::same(14), fill, stroke, egui::StrokeKind::Inside);
-
-                    if let Some(from) = is_drop_target {
-                        let line_x = if from > idx { draw_rect.left() - 3.0 } else { draw_rect.right() + 3.0 };
-                        ui.painter().vline(line_x, (draw_rect.top() + 3.0)..=(draw_rect.bottom() - 3.0), Stroke::new(2.5, t.accent));
-                    }
-
-                    if let Some((ref moved_id, moved_time)) = moved_info
-                        && moved_id == id
-                    {
-                        let elapsed = (ui.input(|i| i.time) - moved_time) as f32;
-                        if elapsed < 0.35 {
-                            ui.ctx().request_repaint();
-                            let pulse = ((1.0 - elapsed / 0.35) * 0.9).clamp(0.0, 1.0);
-                            ui.painter().rect_stroke(
-                                draw_rect,
-                                CornerRadius::same(14),
-                                Stroke::new(2.0, t.accent.gamma_multiply(pulse)),
-                                egui::StrokeKind::Inside,
-                            );
-                        }
-                    }
-
+                    let fill = if resp.hovered() { t.hover } else { t.card };
+                    ui.painter().rect(rect, CornerRadius::same(14), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
                     icons::paint(
                         ui,
-                        Rect::from_center_size(egui::pos2(draw_rect.min.x + 18.0, draw_rect.center().y), vec2(16.0, 16.0)),
+                        Rect::from_center_size(egui::pos2(rect.min.x + 18.0, rect.center().y), vec2(16.0, 16.0)),
                         g.icon,
                         15.0,
                         t.accent,
                     );
                     widgets::row_text(
                         ui,
-                        egui::pos2(draw_rect.min.x + 31.0, draw_rect.center().y),
+                        egui::pos2(rect.min.x + 31.0, rect.center().y),
                         label,
                         theme::medium(11.5),
                         t.text,
                         (width - 52.0).max(1.0),
                     );
-                    let x_rect = Rect::from_center_size(draw_rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
+
+                    let x_rect = Rect::from_center_size(rect.right_center() - vec2(13.0, 0.0), vec2(22.0, 22.0));
                     let x = ui.interact(x_rect, ui.scope_id().with(("unpin-home-tool", id)), Sense::click());
                     x.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Unpin {label}")));
                     if x.hovered() {
@@ -351,6 +276,7 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     if x.on_hover_text(tl!("Unpin from Home")).clicked() {
                         unpin = Some(g.id.to_string());
                     }
+
                     resp.context_menu(|ui| {
                         if idx > 0 && ui.button(tl!("Move left")).clicked() {
                             reorder = Some((idx, idx - 1));
@@ -371,12 +297,9 @@ fn pinned(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 }
             });
         }
+
         if let Some((from, to)) = reorder {
-            if let Some(moved_id) = app.pinned_tools.get(from).cloned() {
-                ui.data_mut(|d| d.insert_temp(just_moved_id, (moved_id, ui.input(|i| i.time))));
-            }
             app.move_pinned_tool(from, to);
-            ui.ctx().request_repaint();
         }
         if let Some(id) = unpin {
             app.unpin_tool(&id);

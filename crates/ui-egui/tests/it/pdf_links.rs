@@ -77,7 +77,7 @@ fn drawing_editing_and_deleting_links() {
     }
     h.get_by_label("OK").click();
     h.run_steps(3);
-    assert_eq!(links(&h)[0].action, LinkAction::Page(0));
+    assert_eq!(links(&h)[0].action, LinkAction::Page { page: 0, zoom: pdfcraft_engine::LinkZoom::Inherit });
     // Delete the selected link.
     h.key_press(egui::Key::Delete);
     h.run_steps(3);

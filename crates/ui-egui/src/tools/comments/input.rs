@@ -221,7 +221,7 @@ fn select_input(
             CommentPart::Body if !is_markup(&a.subtype) => {
                 cv.selected = Some((cx.page, a.index));
                 cv.reveal = true;
-                if cx.allowed && cx.tool == QuickTool::Select {
+                if cx.allowed && matches!(cx.tool, QuickTool::Select | QuickTool::Fill(_)) {
                     cv.gesture = Some(Gesture::Move { page: cx.page, index: a.index, from: o });
                 }
                 consumed = true;

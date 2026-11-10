@@ -96,6 +96,11 @@ pub fn default_strip_tools() -> Vec<String> {
     .map(str::to_owned)
     .collect()
 }
+
+/// The default pinned tools shown on Home on a fresh install.
+pub fn default_pinned_tools() -> Vec<String> {
+    ["edit", "fill_sign", "create", "combine", "organize", "export", "comment", "scan"].into_iter().map(str::to_owned).collect()
+}
 pub use editing::{CloseRequest, SaveTarget};
 pub use files::{ExtractDraft, FilePurpose, FileRequest, RotateDraft, SplitDraft, SplitMode, SplitPlan};
 pub use recovery::{AUTOSAVE_SECS, RecoveryMeta, RecoveryStore};

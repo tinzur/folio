@@ -345,7 +345,7 @@ fn thickness_slider(ui: &mut egui::Ui, id: egui::Id) -> Option<f64> {
 /// A compact colour panel for the selected highlight, underline or strikeout. Selecting one of
 /// those marks (a click on the text) opens it, so its colour can be changed without the full
 /// Comment Properties dialog. Returns the edit to apply, if a swatch was picked.
-pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &DocView, info: &DocInfo) -> Option<Edit> {
+pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &mut DocView, info: &DocInfo) -> Option<Edit> {
     let (page, index) = view.comments.selected?;
     let a = info.annotations.iter().find(|a| a.page == page && a.index == index && !a.is_reply())?;
     let has_stroke = matches!(
@@ -365,25 +365,61 @@ pub(super) fn markup_colors(ui: &mut egui::Ui, viewport: Rect, view: &DocView, i
     let y = if rect.bottom() + 210.0 < viewport.bottom() { rect.bottom() + 6.0 } else { (rect.top() - 210.0).max(viewport.top() + 6.0) };
     let mut picked = None;
     let area_id = egui::Id::unique(("markup-colours", view.id.0, page, index));
-    egui::Area::new(area_id).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(ui.ctx(), |ui| {
+    let time_id = area_id.with("opened_time");
+    let now = ui.input(|i| i.time);
+    let opened_at = ui.data(|d| d.get_temp::<f64>(time_id)).unwrap_or_else(|| {
+        ui.data_mut(|d| d.insert_temp(time_id, now));
+        now
+    });
+    // Request a repaint to drive the 6-second auto-dismiss timer.
+    ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+
+    let mut dismiss = now - opened_at > 6.0;
+    let mut interacted = false;
+
+    let area_response = egui::Area::new(area_id).order(egui::Order::Foreground).fixed_pos(pos2(x, y)).show(ui.ctx(), |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_max_width(width - 16.0);
             ui.label(egui::RichText::new(tl!("Colour")).strong());
             ui.add_space(4.0);
             if let Some(colour) = comments::swatch_grid(ui, a.color.map(|c| c.map(f64::from))) {
                 picked = Some(Edit::StyleAnnotation { page, index, color: Some(colour), opacity: None, width: None, endings: None });
+                // As requested: as soon as color is selected, dismiss popup.
+                dismiss = true;
             }
             ui.add_space(6.0);
             if let Some(opacity) = opacity_slider(ui, area_id.with("opacity")) {
+                interacted = true;
                 picked = Some(Edit::StyleAnnotation { page, index, color: None, opacity: Some(opacity), width: None, endings: None });
             }
             if has_stroke {
                 ui.add_space(6.0);
                 if let Some(width) = thickness_slider(ui, area_id.with("thickness")) {
+                    interacted = true;
                     picked = Some(Edit::StyleAnnotation { page, index, color: None, opacity: None, width: Some(width), endings: None });
                 }
             }
         });
     });
+
+    let popup_rect = area_response.response.rect;
+    if interacted || area_response.response.hovered() || area_response.response.contains_pointer() {
+        ui.data_mut(|d| d.insert_temp(time_id, now));
+    }
+
+    // Dismiss when clicking anywhere outside the popup area and outside the annotation.
+    let outside_click = ui.input(|i| {
+        i.pointer.button_pressed(egui::PointerButton::Primary)
+            && i.pointer.interact_pos().is_some_and(|pos| !popup_rect.contains(pos) && !rect.contains(pos))
+    });
+    if outside_click {
+        dismiss = true;
+    }
+
+    if dismiss {
+        view.comments.selected = None;
+        ui.data_mut(|d| d.remove::<f64>(time_id));
+    }
+
     picked
 }

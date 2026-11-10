@@ -649,6 +649,21 @@ fn card_general(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut 
     ctx.label_secondary(ui, tl!("Scale the top bar height, document tabs, and action button sizes."), t);
     ui.add_space(6.0);
 
+    ui.horizontal(|ui| {
+        ctx.label_primary(ui, tl!("Toolbar position"), t);
+        for (dock, label) in [(None, "Top"), (Some("bottom"), "Bottom"), (Some("left"), "Left"), (Some("right"), "Right")] {
+            let on = app.hotbar.dock.as_deref() == dock;
+            if ui.selectable_label(on, tl!(label)).clicked() {
+                app.hotbar.dock = dock.map(str::to_owned);
+                if let Some(side) = dock {
+                    let _ = app.hotbar.place(side);
+                }
+            }
+        }
+    });
+    ctx.label_secondary(ui, tl!("Position of the annotation toolbar (Top, Bottom, Left, or Right edge)."), t);
+    ui.add_space(6.0);
+
     #[cfg(not(target_arch = "wasm32"))]
     ctx.checkbox(ui, &mut app.reopen_last_session, tl!("Reopen the files that were open when PdfCraft last closed"), t);
     #[cfg(not(target_arch = "wasm32"))]

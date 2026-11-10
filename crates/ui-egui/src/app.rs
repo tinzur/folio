@@ -156,7 +156,7 @@ impl PdfCraftApp {
             quit_session: None,
             reload_changed_files: true,
             show_secured_notice: true,
-            always_default_view: false,
+            always_default_view: true,
             #[cfg(not(target_arch = "wasm32"))]
             watch: Default::default(),
             #[cfg(not(target_arch = "wasm32"))]
@@ -173,7 +173,7 @@ impl PdfCraftApp {
             open_prepare_gate: None,
             pinned: Default::default(),
             recent_check: Default::default(),
-            pinned_tools: Vec::new(),
+            pinned_tools: crate::default_pinned_tools(),
             pinned_files: Vec::new(),
             pin_tool_search: String::new(),
             toast: None,
@@ -463,6 +463,14 @@ impl PdfCraftApp {
             if let Some(g) = pdfcraft_engine::catalog::group(id) {
                 self.notify_fmt("Unpinned {tool} from Home", &[("tool", tl!(g.label))]);
             }
+        }
+    }
+
+    /// Move a pinned tool group from one index to another on Home.
+    pub fn move_pinned_tool(&mut self, from: usize, to: usize) {
+        if from < self.pinned_tools.len() && to < self.pinned_tools.len() && from != to {
+            let item = self.pinned_tools.remove(from);
+            self.pinned_tools.insert(to, item);
         }
     }
 

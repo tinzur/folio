@@ -1,11 +1,11 @@
 //! Modal dialogs: Document Properties, Keyboard Shortcuts, About (with the Contributors and Models credits).
 
-use egui::{Align, Layout};
+use egui::{Align, CornerRadius, Layout, Rect, Stroke, vec2};
 
 use crate::theme::{self, Tokens};
 use pdfcraft_engine::Edit;
 
-use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, panels::human_size, widgets};
+use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, icons, panels::human_size, widgets};
 
 pub(super) mod appearance;
 pub mod bookmark_styles_ui;
@@ -155,6 +155,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
 fn dialog_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: &mut Pending) -> bool {
     let t = Tokens::get(ui.ctx());
     match dialog {
+        Dialog::CreatePdf => {
+            dialog_create_pdf(ui, app, req);
+            return false;
+        }
         Dialog::WordCount => {
             req.close = crate::word_count_ui::body(ui, app);
         }
@@ -471,6 +475,47 @@ fn dialog_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: &m
         }
     }
     true
+}
+
+fn dialog_create_pdf(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending) {
+    let t = Tokens::get(ui.ctx());
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(tl!("Create a PDF")).font(theme::semibold(18.0)).color(t.text));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if icons::button(ui, "x", 24.0, false, tl!("Close")).clicked() {
+                req.close = true;
+            }
+        });
+    });
+    ui.add_space(4.0);
+    ui.label(egui::RichText::new(tl!("Choose how you want to create your new PDF document:")).color(t.text_muted));
+    ui.add_space(14.0);
+
+    let options = [
+        ("file-input", tl!("From Single File"), tl!("Convert a Word, Excel, PowerPoint, image, or text file into a PDF"), "create.file"),
+        ("files", tl!("From Multiple Files"), tl!("Combine multiple documents or files into one PDF"), "create.multiple"),
+        ("image", tl!("From Images"), tl!("Select images with page size, orientation, and DPI control"), "create.images"),
+        ("file-plus-2", tl!("Blank Page"), tl!("Start with a clean, empty page and begin adding content"), "create.blank"),
+        ("copy-plus", tl!("From Clipboard"), tl!("Create a PDF directly from copied image or text on your clipboard"), "create.clipboard"),
+    ];
+
+    for (icon, title, desc, cmd) in options {
+        let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 52.0), egui::Sense::click());
+        let hovered = resp.hovered();
+        let bg = if hovered { t.hover } else { t.card };
+        ui.painter().rect(rect, CornerRadius::same(8), bg, Stroke::new(1.0, if hovered { t.accent } else { t.border }), egui::StrokeKind::Inside);
+
+        icons::paint(ui, Rect::from_center_size(egui::pos2(rect.min.x + 24.0, rect.center().y), vec2(22.0, 22.0)), icon, 20.0, t.accent);
+
+        ui.painter().text(egui::pos2(rect.min.x + 48.0, rect.min.y + 16.0), egui::Align2::LEFT_CENTER, title, theme::semibold(13.5), t.text);
+        ui.painter().text(egui::pos2(rect.min.x + 48.0, rect.min.y + 36.0), egui::Align2::LEFT_CENTER, desc, theme::regular(11.5), t.text_muted);
+
+        if resp.clicked() {
+            req.close = true;
+            app.execute(cmd);
+        }
+        ui.add_space(6.0);
+    }
 }
 
 /// `Dialog::Properties(tab)` content. Returns `false` when it has its own buttons and no footer is wanted.

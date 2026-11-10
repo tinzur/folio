@@ -619,10 +619,20 @@ impl Document {
         // Offsets of objects that may be cross-reference streams: their dictionaries are the
         // trailers of files that have no `trailer` keyword (§7.5.8).
         let mut xref_streams = Vec::new();
-        for (num, offset, generation, body) in object_headers(&data) {
+        let headers = object_headers(&data);
+        // Where `/XRef` occurs in the file, found in one pass.
+        let mut xref_marks = Vec::new();
+        let mut mark_from = 0;
+        while let Some(p) = find(&data, b"/XRef", mark_from, data.len()) {
+            xref_marks.push(p);
+            mark_from = p + 1;
+        }
+        for &(num, offset, generation, body) in &headers {
             entries.insert(num, XrefEntry::InFile { offset, generation });
             objstms.push(num);
-            if find(&data, b"/XRef", body, body.saturating_add(1024)).is_some()
+            // `/XRef` within the 1024 bytes after the header (the first one that is there).
+            let first = xref_marks.partition_point(|&p| p < body);
+            if xref_marks.get(first).is_some_and(|&p| p + 5 <= body.saturating_add(1024).min(data.len()))
                 && let Ok(at) = usize::try_from(offset)
             {
                 xref_streams.push(at);

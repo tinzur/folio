@@ -1051,6 +1051,7 @@ fn dock_position_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32) {
 }
 
 fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32, cols: u8, t: &Tokens) {
+    let avail_w = ui.available_width();
     if cols == 2 {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
@@ -1068,7 +1069,7 @@ fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
             zoom_step_buttons(app, ui, cell);
         });
-        let indicator_width = 2.0 * cell + 2.0;
+        let indicator_width = (2.0 * cell + 2.0).min(avail_w);
         zoom_menu_button(app, ui, indicator_width);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
@@ -1087,7 +1088,7 @@ fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32
         {
             app.views[i].zoom_step(true);
         }
-        zoom_menu_button(app, ui, cell);
+        zoom_menu_button(app, ui, avail_w);
         if icons::button(ui, "zoom-out", cell, false, tl!("Zoom out")).clicked()
             && let Some(i) = app.active
         {
@@ -1098,7 +1099,7 @@ fn reading_controls_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, cell: f32
         {
             app.views[i].step_page(false);
         }
-        page_indicator_vertical(app, ui, t, cell, cell);
+        page_indicator_vertical(app, ui, t, avail_w, cell);
         if icons::button(ui, "chevron-right", cell, false, tl!("Next page")).clicked()
             && let Some(i) = app.active
         {
@@ -1328,10 +1329,10 @@ fn zoom_menu_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, width: f32) {
     let percent = format!("{:.0}%", view.zoom * 100.0);
     let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
     let align = popup_align_for(app.hotbar.dock.as_deref(), is_vert);
-    let font_size = if width < 32.0 {
-        8.0
-    } else if width < 42.0 {
-        9.0
+    let font_size = if width < 36.0 {
+        8.5
+    } else if width < 48.0 {
+        9.5
     } else {
         10.5
     };
@@ -1381,25 +1382,30 @@ fn page_indicator_vertical(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens,
     let cur_label = view.current_page_label(labels.get(view.current).map(String::as_str));
     let is_vert = matches!(app.hotbar.dock.as_deref(), Some("left" | "right"));
     let align = popup_align_for(app.hotbar.dock.as_deref(), is_vert);
-    let is_compact = width < 48.0;
+    let is_compact = width < 52.0;
     let (text, text_height, font_size) = if is_compact && page_count > 0 {
-        (format!("{cur_label}\n/{page_count}"), 28.0, 9.0)
+        (format!("{cur_label}\n{page_count}"), 26.0, 9.5)
     } else if page_count > 0 {
         (format!("{cur_label} / {page_count}"), 22.0, 10.5)
     } else {
-        (cur_label, 22.0, 10.5)
+        (cur_label.clone(), 22.0, 10.5)
+    };
+    let hover_text = if page_count > 0 {
+        format!("{} {} / {} — {}", tl!("Page"), cur_label, page_count, tl!("click to jump"))
+    } else {
+        tl!("Current page — click to jump").to_owned()
     };
     let resp = ui
         .scope(|ui| {
             ui.spacing_mut().button_padding = vec2(1.0, 1.0);
             ui.add_sized(
                 [width, text_height],
-                egui::Button::new(egui::RichText::new(text).font(crate::theme::regular(font_size)).color(t.text_muted))
+                egui::Button::new(egui::RichText::new(text).font(crate::theme::medium(font_size)).color(t.text_muted))
                     .wrap_mode(egui::TextWrapMode::Extend),
             )
         })
         .inner
-        .on_hover_text(tl!("Current page — click to jump"));
+        .on_hover_text(hover_text);
 
     egui::Popup::menu(&resp).align(align).show(|ui| {
         ui.horizontal(|ui| {

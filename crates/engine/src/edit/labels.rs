@@ -284,6 +284,7 @@ impl Edit {
             Edit::RemoveMarks { kind: MarkKind::HeaderFooter } => Label::of("Remove header & footer"),
             Edit::RemoveMarks { kind: MarkKind::Watermark } => Label::of("Remove watermark"),
             Edit::RemoveMarks { kind: MarkKind::Background } => Label::of("Remove background"),
+            Edit::RemoveMarks { kind: MarkKind::PrinterMarks } => Label::of("Remove printer marks"),
             Edit::AddText { .. } => Label::of("Add text"),
             Edit::AddImage { .. } => Label::of("Add image"),
             Edit::UpdateContent { .. } => Label::of("Edit content"),
@@ -307,6 +308,7 @@ impl Edit {
             Edit::FlattenFillSign => Label::of("Flatten Fill & Sign"),
             Edit::Protect(_) => Label::of("Protect with password"),
             Edit::RemoveProtection => Label::of("Remove security"),
+            Edit::EnhanceScan { .. } => Label::of("Enhance scanned file"),
             // A batch carries its own name, already worded by whoever built it.
             // A batch carries its name as text, so the wording is only the hole (see `BATCH_LABELS`).
             Edit::Batch { label, .. } => Label::with("{batch}", label.as_str()),

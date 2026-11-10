@@ -45,6 +45,7 @@ pub mod printcheck;
 mod protection;
 mod scan_colours;
 mod scan_fields;
+pub mod scan_clean;
 mod session;
 pub mod signature_image;
 pub mod signature_scan;

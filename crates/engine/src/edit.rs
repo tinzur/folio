@@ -557,6 +557,13 @@ pub enum Edit {
     Protect(Protection),
     /// Remove password security (needs the owner password).
     RemoveProtection,
+    /// Enhance ▸ Scanned document: the new stream objects and raw JPEG/Flate data that
+    /// [`ScanCleanJob::run`](crate::scan_clean::ScanCleanJob::run) cleaned in place of the old
+    /// page pictures. Captured and stored as one undo step by
+    /// [`Session::apply_scan_clean`](crate::Session::apply_scan_clean).
+    EnhanceScan {
+        images: Vec<(pdfcraft_cos::ObjRef, pdfcraft_cos::Stream)>,
+    },
     /// Several edits applied as one undoable step (all or nothing).
     Batch {
         label: String,

@@ -136,6 +136,7 @@ pub(crate) fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Re
         | Edit::MarkDecorative { .. }
         | Edit::MarkTagArtifact { .. }
         | Edit::AddOcrText { .. }
+        | Edit::EnhanceScan { .. }
         | Edit::SetDocumentScript { .. }
         | Edit::SetFieldScript { .. }
         | Edit::RemoveStandardId { .. }
@@ -503,7 +504,7 @@ pub(crate) fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut E
             } else {
                 fit_picture(*rect, dw, dh)
             };
-            let shape = Shape::CustomStamp { rect, name: name.clone(), picture: src.xobject, image: src.image, size: (sw, sh) };
+            let shape = Shape::CustomStamp { rect, name: name.clone(), picture: src.xobject, image: src.image, size: (sw, sh), line: None };
             let style = pdfcraft_annot::Style::default_for(&shape);
             let new = NewAnnotation { page: *page, shape, style, contents: name.clone(), author: author.clone() };
             let index = pdfcraft_annot::add_annotation(doc, &new, &cx.meta())?;
@@ -891,6 +892,7 @@ pub(crate) fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut E
             }
             doc.remove_encryption();
         }
+        Edit::EnhanceScan { images } => crate::scan_clean::write_back(doc, images)?,
         Edit::Batch { edits, .. } => {
             for e in edits {
                 run_edit(doc, e, cx)?;

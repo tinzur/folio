@@ -7,10 +7,7 @@
 use pdfcraft_engine::Edit;
 use pdfcraft_engine::commands::{self, COMMANDS, CommandSpec, Shortcut};
 
-use crate::{
-    Dialog, Mode, PdfCraftApp, PropsTab, RightPanel, SaveTarget,
-    theme::{ThemeKind, ThemePreference},
-};
+use crate::{Dialog, Mode, PdfCraftApp, PropsTab, RightPanel, SaveTarget, theme::ThemePreference};
 
 /// Keys the document view handles itself (`canvas::shortcuts`), for the View menu, tooltips and
 /// Help ▸ Keyboard shortcuts. Keep them in step with the bindings there.
@@ -330,8 +327,14 @@ impl PdfCraftApp {
             "view.next_tab" => self.step_tab(true),
             "view.previous_tab" => self.step_tab(false),
             "view.theme" => {
-                // Toggle light and dark; Monochrome is a separate switch over either.
-                let next = if self.theme == ThemeKind::Light { ThemePreference::Dark } else { ThemePreference::Light };
+                let next = match self.theme_preference {
+                    ThemePreference::System => ThemePreference::Light,
+                    ThemePreference::Light => ThemePreference::Dark,
+                    ThemePreference::Dark => ThemePreference::Sepia,
+                    ThemePreference::Sepia => ThemePreference::Nordic,
+                    ThemePreference::Nordic => ThemePreference::Dracula,
+                    ThemePreference::Dracula => ThemePreference::System,
+                };
                 self.set_theme_preference(next);
             }
             command if command.starts_with("measure.") => crate::measure_ui::command(self, command),

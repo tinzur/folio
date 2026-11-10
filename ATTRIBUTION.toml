@@ -2972,7 +2972,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "assets/app-icon/LICENSE.txt"
 kind = "image"
 usage = "Finder window of the macOS DMG; rendered to background.tiff by packaging/macos/dmg/generate.py"
-sha256 = "182663e4d1c4fabbb7ab2e1f0d4e991a8e0859b4a8dee6934d3e25d77ea020af"
+sha256 = "3ccf66379bb52205989ff2a573a3a33fc49788722618aa36f72d0e48080406dc"
 
 
 [[asset]]
@@ -2984,7 +2984,67 @@ licence = "MIT OR Apache-2.0"
 licence_file = "assets/app-icon/LICENSE.txt"
 kind = "image"
 usage = "1x + 2x HiDPI 16-colour palette TIFF copied into the macOS DMG by packaging/macos/package.sh; includes the app icon and the free LittleCMS built-in sRGB profile"
-sha256 = "bedf1b23707b9e34157440e83f65464ff314fa9f6b1d39c7a8930d1645c2f8be"
+sha256 = "06a4983fbb76ece0a0189fc8e3c8aac8864844d6ce764caf28336a9c037e57e1"
+
+
+[[asset]]
+path = "assets/brand/tinzur-qr.png"
+title = "Folio creator Telegram QR code"
+author = "TINZUR"
+source = "this repository"
+licence = "MIT OR Apache-2.0"
+licence_file = "LICENSE-MIT"
+kind = "image"
+usage = "About dialog and home footer profile link"
+sha256 = "6fae1e13b04c82adcb6e3d2cbca9878531f2c8c22386f433c8ae478489d3edf0"
+
+
+[[asset]]
+path = "docs/images/folio-home.png"
+title = "Folio screenshot: Home dashboard"
+author = "Folio contributors"
+source = "this repository"
+licence = "MIT OR Apache-2.0"
+licence_file = "LICENSE-MIT"
+kind = "image"
+usage = "README: Folio Home dashboard with pre-pinned workflow tools and folder shortcuts"
+sha256 = "6d1b5bdec4150249a834dc53d80d68cb5f58f7ee5a8ffa7596f0a0a000d33c8a"
+
+
+[[asset]]
+path = "docs/images/folio-split.png"
+title = "Folio screenshot: True Split View"
+author = "Folio contributors"
+source = "this repository"
+licence = "MIT OR Apache-2.0"
+licence_file = "LICENSE-MIT"
+kind = "image"
+usage = "README: True Split View dual document reading mode"
+sha256 = "0e0f0b9409e40375f1fa351abbde7d15b666bbd29545d30634a9bfbf677396bb"
+
+
+[[asset]]
+path = "docs/images/folio-topbar.png"
+title = "Folio screenshot: Two-row header and annotation row"
+author = "Folio contributors"
+source = "this repository"
+licence = "MIT OR Apache-2.0"
+licence_file = "LICENSE-MIT"
+kind = "image"
+usage = "README: Two-row header, focus mode toggle, and reading toolbar"
+sha256 = "9b4efa5640c605b14746017ee0dba9b6d10c9dc4fab447c73fe9c4723a6e664c"
+
+
+[[asset]]
+path = "docs/images/folio-customization.jpg"
+title = "Folio screenshot: Toolbar customization"
+author = "Folio contributors"
+source = "this repository"
+licence = "MIT OR Apache-2.0"
+licence_file = "LICENSE-MIT"
+kind = "image"
+usage = "README: Toolbar customization drawer (Top/Bottom/Left/Right, sizing, tool checklists)"
+sha256 = "1add37503652e2bd591dde3c9e7ed563ad2ce34bc19b341549ec72aeaaeb0886"
 
 [[fetched]]
 file = "text-detection.onnx"

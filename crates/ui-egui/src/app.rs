@@ -164,6 +164,10 @@ impl PdfCraftApp {
             #[cfg(not(target_arch = "wasm32"))]
             pending_opens: Vec::new(),
             #[cfg(not(target_arch = "wasm32"))]
+            deferred_opens: std::collections::VecDeque::new(),
+            #[cfg(not(target_arch = "wasm32"))]
+            password_retry: None,
+            #[cfg(not(target_arch = "wasm32"))]
             next_open_token: 0,
             #[cfg(not(target_arch = "wasm32"))]
             launch_layout: None,

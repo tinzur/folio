@@ -138,7 +138,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev rpm zsync flatpak flatpak-builder librsvg2-common
-          curl -sfL https://raw.githubusercontent.com/goreleaser/nfpm/main/scripts/install.sh | sudo bash -s -- -b /usr/local/bin
+          curl -sL https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_amd64.deb -o /tmp/nfpm.deb
+          sudo dpkg -i /tmp/nfpm.deb
           which nfpm
           nfpm --version
 

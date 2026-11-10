@@ -144,13 +144,14 @@ impl Automation {
                     o => return Err(bad(format!("unknown order {o:?}"))),
                 };
                 match Layout::multiple(per) {
-                    Layout::Multiple { cols, rows, per_sheet, .. } => Layout::Multiple {
+                    Layout::Multiple { cols, rows, per_sheet, custom, .. } => Layout::Multiple {
                         cols,
                         rows,
                         per_sheet,
                         order,
                         border: a.opt_bool("border")?.unwrap_or(false),
                         auto_rotate: a.opt_bool("auto_rotate")?.unwrap_or(true),
+                        custom,
                     },
                     l => l,
                 }

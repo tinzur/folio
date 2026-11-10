@@ -34,7 +34,7 @@ impl Automation {
                 if p < 1 || p > n {
                     return Err(bad(format!("to_page must be 1–{n}")));
                 }
-                Ok(Some(LinkAction::Page(p as usize - 1)))
+                Ok(Some(LinkAction::Page { page: p as usize - 1, zoom: pdfcraft_engine::LinkZoom::Inherit }))
             }
             (None, None) => Ok(None),
         }
@@ -90,7 +90,7 @@ impl Automation {
                             v["named"] = json!(true);
                         }
                     }
-                    (LinkAction::Page(p), None) => v["to_page"] = json!(p + 1),
+                    (LinkAction::Page { page: p, .. }, None) => v["to_page"] = json!(p + 1),
                     (LinkAction::Other(o), None) => v["other"] = json!(o),
                 }
                 v

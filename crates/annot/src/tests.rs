@@ -1074,8 +1074,9 @@ fn malformed_optional_interior_color_does_not_hide_shape_strokes() {
     polyline.set(b"LE".to_vec(), Object::Array(vec![Object::name("None"), Object::name("None")]));
     polyline.set(b"IC".to_vec(), malformed);
 
+    let doc = fixture();
     for (name, annotation) in [("Square", square), ("Circle", circle), ("Polygon", polygon), ("Line", line), ("PolyLine", polyline)] {
-        assert!(appearance::build(&annotation).is_some(), "malformed optional /IC must not hide a valid {name} stroke");
+        assert!(appearance::build(&doc, &annotation).is_some(), "malformed optional /IC must not hide a valid {name} stroke");
     }
 
     let doc = document_of(&[
@@ -1170,7 +1171,8 @@ fn a_stamp_without_an_appearance_draws_the_stamp_it_names() {
     // A stamp's own artwork is never replaced, and the drawing is for display only: edits
     // (restyling, flattening) still find nothing they may write.
     assert!(appearance::display_stamp(&stamp_dict("/Name /Draft /AP << /N 9 0 R >>")).is_none());
-    assert!(appearance::build(&stamp_dict("/Name /Draft")).is_none());
+    let doc = fixture();
+    assert!(appearance::build(&doc, &stamp_dict("/Name /Draft")).is_none());
     assert!(appearance::display_stamp(&stamp_dict("/Name /Draft /PCStamp true")).is_none(), "PdfCraft's own stamps are drawn by `build`");
     assert!(appearance::display_stamp(&stamp_dict("/Name /Draft /Rect [5 5 5 50]")).is_none(), "no width");
 }
@@ -1273,8 +1275,8 @@ fn every_line_ending_is_drawn() {
     assert_eq!(call.name(b"LE"), Some(b"Diamond".as_slice()));
     assert!(ap_content(&doc, call).contains("h B"), "diamond callout");
 
-    assert!(appearance::build(&line_dict([f64::NAN, 0.0, 10.0, 0.0], "OpenArrow")).is_none(), "a non-finite endpoint is rejected");
-    assert!(appearance::build(&line_dict([0.0, 0.0, 10.0, 0.0], "Foo")).is_none(), "an unknown ending is not replaced");
+    assert!(appearance::build(&doc, &line_dict([f64::NAN, 0.0, 10.0, 0.0], "OpenArrow")).is_none(), "a non-finite endpoint is rejected");
+    assert!(appearance::build(&doc, &line_dict([0.0, 0.0, 10.0, 0.0], "Foo")).is_none(), "an unknown ending is not replaced");
 }
 
 #[test]
@@ -1815,7 +1817,8 @@ fn note_drawing(name: Option<&str>, color: [f64; 3]) -> Vec<u8> {
     if let Some(n) = name {
         d.set(b"Name".to_vec(), Object::name(n));
     }
-    crate::appearance::build(&d).expect("a note is drawn").decoded().unwrap()
+    let doc = fixture();
+    crate::appearance::build(&doc, &d).expect("a note is drawn").decoded().unwrap()
 }
 
 /// ISO 32000-2 §12.5.6.4, Table 175: a viewer shall provide icons for the seven standard names,
@@ -1863,7 +1866,7 @@ fn a_star_note_keeps_its_star_when_recoloured() {
 fn content_of(src: &str) -> String {
     let doc = document_of(&[src.as_bytes()]);
     let d = doc.get(ObjRef::new(1, 0)).as_dict().cloned().expect("a dictionary");
-    let stream = appearance::build(&d).expect("drawn");
+    let stream = appearance::build(&doc, &d).expect("drawn");
     String::from_utf8_lossy(&stream.decoded().unwrap()).into_owned()
 }
 
@@ -1915,7 +1918,8 @@ fn bad_dash_arrays_draw_solid() {
     for w in [f64::NAN, f64::INFINITY, -2.0] {
         let dash = Object::Array([f64::NAN, 2.0].map(Object::Real).to_vec());
         d.set(b"Border".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Real(w), dash]));
-        let c = String::from_utf8_lossy(&appearance::build(&d).unwrap().decoded().unwrap()).into_owned();
+        let doc = fixture();
+        let c = String::from_utf8_lossy(&appearance::build(&doc, &d).unwrap().decoded().unwrap()).into_owned();
         assert!(c.contains("1 w") && !c.contains(" d\n") && !c.contains("NaN") && !c.contains("inf"), "{w}: {c}");
     }
 }
@@ -1937,7 +1941,7 @@ fn a_caret_with_a_paragraph_symbol_draws_the_pilcrow() {
     let caret = |extra: &str| {
         let doc = document_of(&[format!("<< /Subtype /Caret /Rect [30 30 60 60] /C [0.9 0.1 0.1] {extra} >>").as_bytes()]);
         let d = doc.get(ObjRef::new(1, 0)).as_dict().cloned().unwrap();
-        let s = appearance::build(&d).unwrap();
+        let s = appearance::build(&doc, &d).unwrap();
         (s.decoded().unwrap(), s.dict.get(b"Resources").and_then(Object::as_dict).is_some_and(|r| r.contains(b"Font")))
     };
     let has_pilcrow = |c: &[u8]| c.windows(5).any(|w| w == b"(\xb6) T");
@@ -1965,7 +1969,7 @@ fn a_caret_with_a_paragraph_symbol_draws_the_pilcrow() {
     }
     let doc = document_of(&[b"<< /Subtype /Caret /Rect [30 30 30 30] /Sy /P >>"]);
     let d = doc.get(ObjRef::new(1, 0)).as_dict().cloned().unwrap();
-    assert!(appearance::build(&d).is_some());
+    assert!(appearance::build(&doc, &d).is_some());
 }
 
 // ── Line annotations: leader lines and captions (ISO 32000-2 §12.5.6.7, Table 178) ──────────
@@ -1985,7 +1989,8 @@ fn table_178_line(l: [f64; 4], extra: &[(&str, Object)]) -> Dict {
 
 /// The built appearance's content.
 fn line_drawing(d: &Dict) -> String {
-    let s = crate::appearance::build(d).expect("the line is drawn");
+    let doc = fixture();
+    let s = crate::appearance::build(&doc, d).expect("the line is drawn");
     String::from_utf8_lossy(&s.decoded().unwrap()).into_owned()
 }
 
@@ -2138,7 +2143,8 @@ fn a_diagonal_lines_leaders_are_perpendicular_and_its_caption_turns_with_it() {
 fn a_caption_from_rich_text_and_one_the_font_cant_draw() {
     let rc = "<?xml version=\"1.0\"?><body xmlns=\"http://www.w3.org/1999/xhtml\"><p>Dim &amp; <b>5</b>0&#x20;mm &lt;x&gt;</p></body>";
     let d = table_178_line([0.0, 0.0, 100.0, 0.0], &[("Cap", Object::Bool(true)), ("RC", Object::String(PdfString::text(rc)))]);
-    let s = crate::appearance::build(&d).unwrap().decoded().unwrap();
+    let doc = fixture();
+    let s = crate::appearance::build(&doc, &d).unwrap().decoded().unwrap();
     assert!(s.windows(17).any(|w| w == b"(Dim & 50 mm <x>)"), "{}", String::from_utf8_lossy(&s));
     let cjk = table_178_line([0.0, 0.0, 100.0, 0.0], &[("Cap", Object::Bool(true)), ("Contents", Object::String(PdfString::text("長さ")))]);
     assert_eq!(crate::appearance::undrawable_text(&cjk), Some(("the line's caption", '長')));

@@ -183,6 +183,14 @@ pub(crate) fn annots_of(doc: &Document, page: &Dict) -> Vec<Object> {
     page.get(b"Annots").map(|a| doc.resolve(a)).and_then(|a| a.as_array().cloned()).unwrap_or_default()
 }
 
+/// A mark's usable `/QuadPoints` quads ([`pdfcraft_geom::quad_points::usable_quads`]), the set the
+/// comment outlines show. Each one is finite, so the box it folds to is a real one.
+fn quad_points(doc: &Document, d: &Dict) -> Vec<[f64; 8]> {
+    let Some(q) = d.get(b"QuadPoints").map(|q| doc.resolve(q)) else { return Vec::new() };
+    let Some(a) = q.as_array() else { return Vec::new() };
+    pdfcraft_geom::quad_points::usable_quads(a.iter().map(|x| doc.resolve(x).as_f64()))
+}
+
 /// Every annotation the pages list. Compared before and after a removal, what is no longer listed
 /// leaves the structure tree too ([`tags::drop_object_refs`]).
 pub(crate) fn listed_annotations(doc: &Document) -> HashSet<ObjRef> {
@@ -213,13 +221,7 @@ pub(crate) fn marks_checked(doc: &Document) -> (Vec<Mark>, Vec<usize>) {
             if d.name(b"Subtype") != Some(b"Redact") {
                 continue;
             }
-            let quads: Vec<f64> = d
-                .get(b"QuadPoints")
-                .and_then(|q| doc.resolve(q).as_array().map(|a| a.iter().filter_map(Object::as_f64).collect()))
-                .unwrap_or_default();
-            let mut rects: Vec<[f64; 4]> = quads
-                .as_chunks::<8>()
-                .0
+            let mut rects: Vec<[f64; 4]> = quad_points(doc, d)
                 .iter()
                 .map(|q| {
                     let xs = [q[0], q[2], q[4], q[6]];
@@ -231,8 +233,9 @@ pub(crate) fn marks_checked(doc: &Document) -> (Vec<Mark>, Vec<usize>) {
                         ys.iter().copied().fold(f64::MIN, f64::max),
                     ]
                 })
-                .filter(|r| r.iter().all(|v| v.is_finite()))
                 .collect();
+            // No usable quad (all absent, malformed or non-finite): the mark's `/Rect`, else it
+            // is unreadable and apply refuses it.
             if rects.is_empty()
                 && let Some(r) = rect_of(doc, d.get(b"Rect"))
             {

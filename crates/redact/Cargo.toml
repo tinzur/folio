@@ -14,6 +14,7 @@ pdfcraft-content = { workspace = true }
 pdfcraft-fonts = { workspace = true }
 pdfcraft-model = { workspace = true }
 pdfcraft-forms = { workspace = true }
+pdfcraft-geom = { workspace = true }
 pdfcraft-edit = { workspace = true }
 pdfcraft-annot = { workspace = true }
 pdfcraft-xfa = { workspace = true }
@@ -23,3 +24,4 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 pdfcraft-testkit = { workspace = true }
+pdfcraft-render = { workspace = true }

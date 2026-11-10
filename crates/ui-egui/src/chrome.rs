@@ -91,7 +91,10 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.execute(match app.theme_preference {
                         ThemePreference::System => "view.theme.light",
                         ThemePreference::Light => "view.theme.dark",
-                        _ => "view.theme.system",
+                        ThemePreference::Dark => "view.theme.sepia",
+                        ThemePreference::Sepia => "view.theme.nordic",
+                        ThemePreference::Nordic => "view.theme.dracula",
+                        ThemePreference::Dracula => "view.theme.system",
                     });
                 }
                 egui::Popup::context_menu(&theme_resp).id(theme_resp.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));

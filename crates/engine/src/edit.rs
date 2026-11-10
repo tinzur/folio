@@ -450,6 +450,11 @@ pub enum Edit {
         replace: bool,
         file: Option<MarkFile>,
     },
+    AddPrinterMarks {
+        pages: Vec<usize>,
+        settings: pdfcraft_edit::PrinterMarks,
+        replace: bool,
+    },
     /// Remove every mark of a kind from every page.
     RemoveMarks {
         kind: MarkKind,

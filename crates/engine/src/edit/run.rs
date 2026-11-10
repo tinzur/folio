@@ -98,6 +98,7 @@ pub(crate) fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Re
         | Edit::AddHeaderFooter { .. }
         | Edit::AddWatermark { .. }
         | Edit::AddBackground { .. }
+        | Edit::AddPrinterMarks { .. }
         | Edit::RemoveMarks { .. }
         | Edit::AddField { .. }
         | Edit::ApplyRedactions { .. }
@@ -722,6 +723,9 @@ pub(crate) fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut E
                 s.source = Some(mark_source(doc, f)?);
             }
             pdfcraft_edit::add_background(doc, pages, &s, *replace)?
+        }
+        Edit::AddPrinterMarks { pages, settings, replace } => {
+            pdfcraft_edit::add_printer_marks(doc, pages, settings, *replace)?;
         }
         Edit::RemoveMarks { kind } => {
             let n = pdfcraft_model::pages(doc).len();

@@ -3,7 +3,7 @@
 //! their outlines, a click selects one, a double-click edits it and Delete removes it.
 
 use egui::{Color32, CornerRadius, Pos2, Rect, Stroke};
-use pdfcraft_engine::{Edit, LinkAction, LinkHighlight, LinkItem, LinkStyle};
+use pdfcraft_engine::{Edit, LinkAction, LinkHighlight, LinkItem, LinkStyle, LinkZoom};
 use pdfcraft_render::{DocInfo, LinkTarget};
 
 use crate::canvas::{DocView, PageToolContext, PageXform};
@@ -201,7 +201,7 @@ impl PdfCraftApp {
                     _ => "https://".into(),
                 },
                 target: match l.action {
-                    LinkAction::Page(p) => p + 1,
+                    LinkAction::Page { page: p, .. } => p + 1,
                     _ => 1,
                 },
                 style: l.style,
@@ -363,7 +363,7 @@ pub(crate) fn edit_for(d: &LinkDraft) -> Edit {
         None => Edit::AddLink {
             page: d.page,
             rect: d.rect,
-            action: if d.web { LinkAction::Uri(d.url.trim().to_string()) } else { LinkAction::Page(d.target.saturating_sub(1)) },
+            action: if d.web { LinkAction::Uri(d.url.trim().to_string()) } else { LinkAction::Page { page: d.target.saturating_sub(1), zoom: LinkZoom::Inherit } },
             style: d.style,
         },
         Some(index) => Edit::SetLink {
@@ -371,7 +371,7 @@ pub(crate) fn edit_for(d: &LinkDraft) -> Edit {
             index,
             rect: None,
             action: (!d.preserve_action)
-                .then(|| if d.web { LinkAction::Uri(d.url.trim().to_string()) } else { LinkAction::Page(d.target.saturating_sub(1)) }),
+                .then(|| if d.web { LinkAction::Uri(d.url.trim().to_string()) } else { LinkAction::Page { page: d.target.saturating_sub(1), zoom: LinkZoom::Inherit } }),
             style: Some(d.style),
         },
     }

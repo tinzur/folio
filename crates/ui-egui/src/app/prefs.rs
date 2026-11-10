@@ -174,6 +174,8 @@ impl PdfCraftApp {
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
         v["print_paper"] = serde_json::json!(pdfcraft_engine::print::PAPERS.get(self.print_draft.paper).map(|(name, _)| *name));
+        // Each printer's paper, sizing and two-sided choice, the one printed to last first (#2001).
+        v["print_printers"] = crate::print_ui::setups_to_json(&self.print_draft.setups);
         // Search engines and AI tools for selected text (Preferences ▸ Search the web).
         v["web_tools"] = serde_json::to_value(&self.web_tools).unwrap_or_default();
         v.to_string()
@@ -353,6 +355,9 @@ impl PdfCraftApp {
             .and_then(|name| pdfcraft_engine::print::PAPERS.iter().position(|(canonical, _)| *canonical == name))
         {
             self.print_draft.paper = paper;
+        }
+        if let Some(setups) = crate::print_ui::setups_from_json(&v["print_printers"]) {
+            self.print_draft.setups = setups;
         }
         if let Some(on) = v["highlight_fields"].as_bool() {
             self.view_defaults.highlight_fields = on;

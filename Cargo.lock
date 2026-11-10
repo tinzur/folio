@@ -4570,10 +4570,12 @@ name = "pdfcraft-print"
 version = "0.18.1"
 dependencies = [
  "craft-print",
+ "log",
  "pdfcraft-content",
  "pdfcraft-cos",
  "pdfcraft-model",
  "pdfcraft-render",
+ "skrifa 0.44.0",
  "thiserror 2.0.21",
 ]
 

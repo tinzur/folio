@@ -9,18 +9,10 @@ plan/
 /assets/models
 # A craft-fonts checkout used as the optional CRAFT_FONTS_DIR build input (CI and releases put it here).
 /craft-fonts
-.claude/
-/.perch
-
-# Local scratch, personal notes, and internal roadmaps
-/HANDOFF.md
-/ROADMAP.md
-/docs/roadmap.md
-/docs/redesign-status.md
-/docs/ai-chat-design.md
-/docs/folio-fork-guide.md
-/docs/screenshots/
-/assets/brand/tinzur-qr-source.jpg
+quarantine*/
+scratch/
+*.tmp
+*.bak
 *.pdf
 !crates/**/data/*.pdf
 !crates/sign/tests/data/*.pdf

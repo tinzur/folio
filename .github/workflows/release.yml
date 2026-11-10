@@ -137,8 +137,10 @@ jobs:
       - name: Install system dependencies & packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev rpm
-          curl -sfL https://raw.githubusercontent.com/goreleaser/nfpm/main/scripts/install.sh | sudo bash
+          sudo apt-get install -y libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libxkbcommon-dev libssl-dev rpm zsync flatpak flatpak-builder librsvg2-common
+          curl -sfL https://raw.githubusercontent.com/goreleaser/nfpm/main/scripts/install.sh | sudo bash -s -- -b /usr/local/bin
+          which nfpm
+          nfpm --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -148,13 +150,14 @@ jobs:
       - name: Build Release Binaries
         run: cargo build --release --locked -p pdfcraft -p pdfcraft-cli --target x86_64-unknown-linux-gnu
 
-      - name: Package Linux Formats (deb, rpm, tar)
+      - name: Package Linux Formats (deb, rpm, AppImage, tar, flatpak)
         env:
           PDFCRAFT_SKIP_MODELS: "1"
           CROSS_TARGET: x86_64-unknown-linux-gnu
         run: |
-          chmod +x packaging/linux/package.sh packaging/env.sh
-          ./packaging/linux/package.sh --skip-build --formats "deb rpm tar cli"
+          chmod +x packaging/linux/package.sh packaging/linux/flatpak-bundle.sh packaging/env.sh
+          ./packaging/linux/package.sh --skip-build --formats "appimage deb rpm tar cli"
+          ./packaging/linux/flatpak-bundle.sh --no-test || echo "Flatpak bundle generation skipped"
           ls -lh dist/release/
 
       - name: Upload Linux Artifacts

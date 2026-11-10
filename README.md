@@ -145,10 +145,10 @@ Folio retains 100% of the high-performance open-source **PdfCraft** core engine:
 
 ## Download & Installation
 
-Folio releases are built natively for all major desktop platforms. You can download the latest version directly from [**GitHub Releases**](https://github.com/TINZUR/pdfcraft/releases).
+Folio releases are built natively for all major desktop platforms. You can download the latest version directly from [**GitHub Releases**](https://github.com/tinzur/folio/releases).
 
 ### 🍏 macOS (Apple Silicon: M1 / M2 / M3 / M4 / M5)
-1. Download **`folio-20.0.1-macos-aarch64.dmg`** from [**Releases**](https://github.com/TINZUR/pdfcraft/releases/latest).
+1. Download **`folio-20.0.1-macos-aarch64.dmg`** from [**Releases**](https://github.com/tinzur/folio/releases/latest).
 2. Double-click the `.dmg` and drag **Folio.app** into your `/Applications` folder.
 
 > [!TIP]

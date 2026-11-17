@@ -1,0 +1,89 @@
+# Windows-only builds. Pushes to main refresh a rolling `windows-latest` release with the
+# installer and portable .zip, so a Windows build can be tried without waiting for (or changing)
+# the all-platform Release workflow. Pull requests only get the artifact.
+name: Windows build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Only the rolling release needs to write; pull requests leave this read-only in practice.
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Windows (x86_64)
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-x86_64
+
+      - name: Install WiX
+        shell: pwsh
+        run: |
+          $tools = Join-Path $env:RUNNER_TEMP 'pdfcraft-wix'
+          dotnet tool install --tool-path $tools wix --version 5.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed.' }
+          $tools >> $env:GITHUB_PATH
+
+      - name: Build Windows installer and portable archive
+        env:
+          # Fail rather than ship an installer whose executable lacks its icon/version resources.
+          PDFCRAFT_REQUIRE_WINRES: "1"
+        shell: pwsh
+        run: ./packaging/windows/package.ps1 -Arch x64
+
+      - name: Prepare stable rolling-release asset names
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The version lives in [workspace.package] in the root Cargo.toml.
+          $inPackage = $false
+          $version = $null
+          foreach ($line in Get-Content Cargo.toml) {
+            if ($line -match '^\s*\[') { $inPackage = $line.Trim() -eq '[workspace.package]'; continue }
+            if ($inPackage -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $version = $Matches[1]; break }
+          }
+          if (-not $version) { throw 'could not read [workspace.package] version from Cargo.toml' }
+          Move-Item "dist/release/pdfcraft-$version-windows-x64.msi" 'dist/release/pdfcraft-windows-x64.msi' -Force
+          Move-Item "dist/release/pdfcraft-$version-windows-x64-portable.zip" 'dist/release/pdfcraft-windows-x64-portable.zip' -Force
+          Write-Output "Folio $version for Windows x86_64"
+          Get-ChildItem dist/release
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: dist/release/*
+
+      - name: Refresh the Windows release
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: windows-latest
+          name: Folio for Windows (latest build)
+          body: |
+            Automatic Windows x86_64 build of `${{ github.sha }}`.
+
+            Download `pdfcraft-windows-x64.msi` to install PdfCraft with a Start menu shortcut.
+            The portable archive is available as `pdfcraft-windows-x64-portable.zip`.
+          prerelease: true
+          make_latest: false
+          files: dist/release/*

@@ -22,7 +22,12 @@ pub(crate) fn show(app: &mut PdfCraftApp, ctx: &egui::Context, main: Rect) {
         return;
     }
     let t = Tokens::get(ctx);
-    let tab_strip_bottom = if cfg!(target_os = "macos") && app.integrated_titlebar { crate::chrome::MAC_TITLE_BAR } else { 38.0 };
+    let tab_strip_bottom = if cfg!(target_os = "macos") && app.integrated_titlebar {
+        crate::chrome::MAC_TITLE_BAR
+    } else {
+        let title_bar = if crate::chrome::draws_title_bar(app) { crate::chrome::TITLE_BAR_HEIGHT } else { 0.0 };
+        title_bar + 38.0
+    };
     let dock = app.hotbar.dock.as_deref().unwrap_or("top");
     let (left, top, height, width) = match dock {
         "left" => {

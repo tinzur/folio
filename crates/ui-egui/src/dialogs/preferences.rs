@@ -685,7 +685,7 @@ fn card_general(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, ctx: &mut 
 
     if app.window_controls.is_some() {
         ctx.checkbox(ui, &mut app.system_title_bar, tl!("Use system title bar"), t).on_hover_text(tl!(
-            "Show a basic title bar for the window buttons instead of the tab strip. GNOME doesn't draw title bars for apps, so this one doesn't follow its theme."
+            "Let the desktop draw the window frame instead of the app's own title bar. GNOME doesn't draw title bars for apps, so there this one doesn't follow its theme."
         ));
     }
 }

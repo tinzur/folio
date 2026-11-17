@@ -257,8 +257,16 @@ fn main() -> eframe::Result {
     let may_hand_off = startup.may_hand_off();
     let startup::Arguments { files, options, control_file, create_images, two_paged, .. } = startup;
     let integrated = cfg!(target_os = "macos");
-    // GNOME on Wayland leaves the window frame to the app (src/decorations.rs).
-    let window_controls = if cfg!(any(target_os = "macos", target_os = "windows")) { None } else { decorations::app_drawn() };
+    // GNOME on Wayland leaves the window frame to the app (src/decorations.rs). Windows draws
+    // its own title bar too, so the menus sit beside the app's name in the band with the window
+    // buttons instead of below the system title bar (`pdfcraft_ui_egui::chrome::title_bar`).
+    let window_controls = if cfg!(target_os = "macos") {
+        None
+    } else if cfg!(target_os = "windows") {
+        Some(pdfcraft_ui_egui::window_controls::Layout::default())
+    } else {
+        decorations::app_drawn()
+    };
     migrate_legacy_folders();
     // The log file stays in the data folder; opened after the arguments (so `--version` leaves
     // no file behind) and after the PrintCraft migration (which a fresh folder would block).

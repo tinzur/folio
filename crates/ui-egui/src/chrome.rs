@@ -21,10 +21,82 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 /// lights plus the same gap the lights keep from the top of the window.
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 
+/// Height of the Windows title bar, above the tab strip.
+pub const TITLE_BAR_HEIGHT: f32 = 34.0;
+
+/// Whether the app draws the Windows title bar: the app's name and the menus beside it, with the
+/// window buttons at the right, above the tab strip. Windows has no native menu bar, so the menus
+/// move into the band where its title bar was. macOS keeps its own menu bar, and Linux keeps the
+/// header bar its tab strip already draws.
+pub(crate) fn draws_title_bar(app: &PdfCraftApp) -> bool {
+    cfg!(target_os = "windows") && app.draws_window_frame()
+}
+
+/// The Windows title bar: branding on the left, then the menus, and the window buttons at the
+/// right. It is the title bar, so dragging it moves the window, and a double click maximizes it.
+pub fn title_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    let t = Tokens::get(ui.ctx());
+    let fullscreen = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
+    let controls = app
+        .window_controls
+        .clone()
+        .filter(|_| app.draws_window_frame() && !fullscreen)
+        .unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
+    egui::Panel::top("title_bar")
+        .exact_size(TITLE_BAR_HEIGHT)
+        .frame(egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left: 8, right: 4, top: 0, bottom: 0 }))
+        .show(ui, |ui| {
+            let full = ui.max_rect();
+            let drag = ui.interact(full, ui.scope_id().with("title_bar_drag"), Sense::click_and_drag());
+            if drag.drag_started() {
+                window_controls::desktop_grab(ui.ctx(), egui::ViewportCommand::StartDrag);
+            }
+            if drag.double_clicked() {
+                let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
+            }
+            ui.horizontal_centered(|ui| {
+                ui.spacing_mut().item_spacing.x = 6.0;
+                // The app icon and name: the band the system title bar used to carry.
+                ui.add(
+                    egui::Image::from_bytes(
+                        "bytes://folio-titlebar.png",
+                        include_bytes!("../../../assets/app-icon/hicolor/48x48/apps/ai.storyteller.pdfcraft.png"),
+                    )
+                    .fit_to_exact_size(vec2(18.0, 18.0))
+                    .alt_text(crate::APP_NAME),
+                );
+                ui.label(egui::RichText::new(crate::APP_NAME).font(theme::semibold(13.0)).color(t.text));
+                ui.add_space(6.0);
+                ui.painter().vline(ui.cursor().left(), ui.max_rect().y_range().shrink(8.0), Stroke::new(1.0, t.divider));
+                ui.add_space(8.0);
+                // The menus take what is left before the window buttons.
+                let reserve = window_controls::width(&controls.right) + 4.0;
+                app.menu_bar_ui_with_reserve(ui, reserve);
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    if !controls.right.is_empty() {
+                        // Laid out left to right inside the right-to-left run, so they read in
+                        // the desktop's order.
+                        let size = vec2(window_controls::width(&controls.right) - window_controls::SIDE_GAP, window_controls::BUTTON);
+                        ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
+                            ui.spacing_mut().item_spacing.x = 0.0;
+                            window_controls::buttons(ui, &controls.right);
+                        });
+                    }
+                });
+            });
+            // A hairline keeps the title bar apart from the tab strip below it.
+            ui.painter().hline(full.x_range(), full.bottom() - 0.5, Stroke::new(1.0, t.divider));
+        });
+}
+
 /// Draw the window's tab strip: home and open controls, shrinkable and scrollable document tabs with drag
 /// reordering, and platform window controls.
 pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
+    // Windows: the title bar above carries the menus and the window buttons, so they stay out of
+    // this row. Everywhere else they remain in the strip as before.
+    let own_title_bar = draws_title_bar(app);
     // macOS: the strip is the 28 pt title bar, so the traffic lights are centred in it; tabs and
     // buttons shrink to keep a margin above and below.
     let mac = cfg!(target_os = "macos") && app.integrated_titlebar;
@@ -51,13 +123,14 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             let controls = app
                 .window_controls
                 .clone()
-                .filter(|_| app.draws_window_frame() && !fullscreen)
+                .filter(|_| app.draws_window_frame() && !fullscreen && !own_title_bar)
                 .unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 // The in-window menu bar where the desktop has none (the macOS menu bar is
                 // native). It shares the document row, so removing the mode bar cost no menus.
-                if app.native_menu.is_none() {
+                // On Windows it is in the title bar above instead.
+                if app.native_menu.is_none() && !own_title_bar {
                     app.menu_bar_ui(ui);
                     ui.add_space(4.0);
                     ui.painter().vline(ui.cursor().left(), ui.max_rect().y_range().shrink(8.0), Stroke::new(1.0, t.divider));
@@ -101,12 +174,17 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 if icons::button(ui, "eye", button, app.focus_mode, tl!("Focus mode")).clicked() {
                     app.focus_mode = !app.focus_mode;
                 }
+                // With the Windows title bar above, Open leads the row beside the app icons.
+                if own_title_bar {
+                    open_button(app, ui, tab_h);
+                }
                 // Reserve the four document actions and the window controls outside the scrolling
                 // tabs, and the three app icons that follow Home (shortcuts, theme, focus).
                 let controls_width = 4.0 * button + 16.0 + window_controls::width(&controls.right);
                 let app_icons = 3.0 * button + 12.0;
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
                 let open_width = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Open").into(), theme::medium(13.0), t.text).size().x) + 38.0 + 12.0;
+                let open_width = if own_title_bar { 0.0 } else { open_width };
                 let mut tabs_width = (ui.available_width() - controls_width - open_width - app_icons).max(0.0);
                 // Tabs shrink to share the strip (names end in "…") and scroll only once they reach
                 // their narrowest; then arrows either side say so and step through them.
@@ -304,57 +382,9 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     ui.data_mut(|d| d.insert_temp(scroll_id.with("to"), x));
                     ui.ctx().request_repaint();
                 }
-                ui.add_space(4.0);
-                let tip = crate::commands::command_tip(ui.ctx(), tl!("Open a PDF ({key})"), "file.open");
-                let open_resp = widgets::ghost_button_sized(ui, "plus", tl!("Open"), tab_h).on_hover_text(tip);
-                let mut open_file = None;
-                let mut open_as_file = None;
-                let mut trigger_browse = false;
-                egui::Popup::menu(&open_resp).id(open_resp.id.with("open_dropdown")).show(|ui| {
-                    ui.set_min_width(220.0);
-                    if ui.add(egui::Button::new(egui::RichText::new(tl!("Browse files…")).font(theme::medium(12.5))).frame(false)).clicked() {
-                        trigger_browse = true;
-                        ui.close();
-                    }
-                    if !app.recent.is_empty() {
-                        ui.separator();
-                        ui.label(egui::RichText::new(tl!("Recent files")).font(theme::semibold(11.0)).color(t.text_muted));
-                        for r in app.recent.iter().take(8) {
-                            let name = std::path::Path::new(&r.path).file_name().and_then(|n| n.to_str()).unwrap_or(&r.path);
-                            let item_btn = ui.add(
-                                egui::Button::new(egui::RichText::new(name).font(theme::regular(12.0)))
-                                    .frame(false)
-                                    .wrap_mode(egui::TextWrapMode::Truncate),
-                            );
-                            egui::Popup::context_menu(&item_btn).id(item_btn.id.with("tab_recent_ctx")).show(|ui| {
-                                if ui.button(tl!("Open in Edit Mode")).clicked() {
-                                    open_as_file = Some((r.path.clone(), "edit"));
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Organize pages")).clicked() {
-                                    open_as_file = Some((r.path.clone(), "organize"));
-                                    ui.close();
-                                }
-                                if ui.button(tl!("Fill & Sign")).clicked() {
-                                    open_as_file = Some((r.path.clone(), "fill_sign"));
-                                    ui.close();
-                                }
-                            });
-                            if item_btn.on_hover_text(&r.path).clicked() {
-                                open_file = Some(r.path.clone());
-                                ui.close();
-                            }
-                        }
-                    }
-                });
-                if trigger_browse {
-                    app.open_dialog();
-                }
-                if let Some((path, tool)) = open_as_file {
-                    app.pending_tool_on_open = Some(tool);
-                    app.open_path(&path);
-                } else if let Some(path) = open_file {
-                    app.open_path(&path);
+                if !own_title_bar {
+                    ui.add_space(4.0);
+                    open_button(app, ui, tab_h);
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if !controls.right.is_empty() {
@@ -413,6 +443,61 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 });
             });
         });
+}
+
+/// The Open button and its menu: a file picker, then the recent files. The popup can also open a
+/// recent file with a tool (Edit, Organize, Fill & Sign).
+fn open_button(app: &mut PdfCraftApp, ui: &mut egui::Ui, tab_h: f32) {
+    let t = Tokens::get(ui.ctx());
+    let tip = crate::commands::command_tip(ui.ctx(), tl!("Open a PDF ({key})"), "file.open");
+    let open_resp = widgets::ghost_button_sized(ui, "plus", tl!("Open"), tab_h).on_hover_text(tip);
+    let mut open_file = None;
+    let mut open_as_file = None;
+    let mut trigger_browse = false;
+    egui::Popup::menu(&open_resp).id(open_resp.id.with("open_dropdown")).show(|ui| {
+        ui.set_min_width(220.0);
+        if ui.add(egui::Button::new(egui::RichText::new(tl!("Browse files…")).font(theme::medium(12.5))).frame(false)).clicked() {
+            trigger_browse = true;
+            ui.close();
+        }
+        if !app.recent.is_empty() {
+            ui.separator();
+            ui.label(egui::RichText::new(tl!("Recent files")).font(theme::semibold(11.0)).color(t.text_muted));
+            for r in app.recent.iter().take(8) {
+                let name = std::path::Path::new(&r.path).file_name().and_then(|n| n.to_str()).unwrap_or(&r.path);
+                let item_btn = ui.add(
+                    egui::Button::new(egui::RichText::new(name).font(theme::regular(12.0))).frame(false).wrap_mode(egui::TextWrapMode::Truncate),
+                );
+                egui::Popup::context_menu(&item_btn).id(item_btn.id.with("tab_recent_ctx")).show(|ui| {
+                    if ui.button(tl!("Open in Edit Mode")).clicked() {
+                        open_as_file = Some((r.path.clone(), "edit"));
+                        ui.close();
+                    }
+                    if ui.button(tl!("Organize pages")).clicked() {
+                        open_as_file = Some((r.path.clone(), "organize"));
+                        ui.close();
+                    }
+                    if ui.button(tl!("Fill & Sign")).clicked() {
+                        open_as_file = Some((r.path.clone(), "fill_sign"));
+                        ui.close();
+                    }
+                });
+                if item_btn.on_hover_text(&r.path).clicked() {
+                    open_file = Some(r.path.clone());
+                    ui.close();
+                }
+            }
+        }
+    });
+    if trigger_browse {
+        app.open_dialog();
+    }
+    if let Some((path, tool)) = open_as_file {
+        app.pending_tool_on_open = Some(tool);
+        app.open_path(&path);
+    } else if let Some(path) = open_file {
+        app.open_path(&path);
+    }
 }
 
 /// The right-click menu on the title bar's theme button.
@@ -603,7 +688,7 @@ fn tab(ui: &mut egui::Ui, spec: TabSpec<'_>, close: &mut Option<usize>) -> egui:
 
 #[cfg(test)]
 mod tab_widths {
-    use super::{MAC_CONTENT_LEFT, MAC_LIGHT, MAC_LIGHT_PITCH, MAC_LIGHTS_LEFT, MAC_TITLE_BAR, tab_cap};
+    use super::{MAC_CONTENT_LEFT, MAC_LIGHT, MAC_LIGHT_PITCH, MAC_LIGHTS_LEFT, MAC_TITLE_BAR, draws_title_bar, tab_cap};
 
     /// Tabs that fit keep their own widths.
     #[test]
@@ -683,5 +768,17 @@ mod tab_widths {
         assert_eq!(MAC_CONTENT_LEFT - lights_end, margin);
         // `egui::Margin` is in `i8`.
         assert!(MAC_CONTENT_LEFT <= f32::from(i8::MAX));
+    }
+
+    /// The Windows title bar (branding, menus and window buttons) exists only where Windows
+    /// leaves the frame to the app and Preferences ▸ Use system title bar is off.
+    #[test]
+    fn the_title_bar_goes_with_the_app_drawn_frame() {
+        let mut app = crate::PdfCraftApp::new();
+        assert!(!draws_title_bar(&app), "no frame of its own, no title bar");
+        app.window_controls = Some(crate::window_controls::Layout::default());
+        assert_eq!(draws_title_bar(&app), cfg!(target_os = "windows"));
+        app.system_title_bar = true;
+        assert!(!draws_title_bar(&app), "the system title bar takes the menus back");
     }
 }

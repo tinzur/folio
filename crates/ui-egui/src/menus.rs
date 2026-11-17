@@ -580,12 +580,18 @@ impl PdfCraftApp {
     /// The menu bar drawn in the window (Windows, Linux, the web, and macOS when the native one
     /// couldn't be installed), where the top bar starts. Runs the commands chosen.
     pub(crate) fn menu_bar_ui(&mut self, ui: &mut egui::Ui) {
+        self.menu_bar_ui_with_reserve(ui, ROW_AFTER_MENUS);
+    }
+
+    /// The same bar where only `reserve` points are wanted after it: the Windows title bar puts
+    /// the window buttons, not the tab strip's buttons, to its right.
+    pub(crate) fn menu_bar_ui_with_reserve(&mut self, ui: &mut egui::Ui, reserve: f32) {
         let ctx = ui.ctx().clone();
         let bar = craft_menu::layout(&self.menu_bar(&ctx), Target::current(), &layout_options()).bar;
         let gate = self.menu_gate(&ctx);
         // The mode tabs, search and buttons follow the bar in the same row: it takes its titles'
         // width, less when the row is short, where the menus that don't fit move into its "⋯".
-        let fit = (ui.available_width() - ROW_AFTER_MENUS).max(MIN_MENUS_WIDTH);
+        let fit = (ui.available_width() - reserve).max(MIN_MENUS_WIDTH);
         let chosen = craft_menu::MenuBarUi::new(&bar)
             .gate(gate)
             .label(&translate)

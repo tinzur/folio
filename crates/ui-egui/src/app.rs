@@ -808,6 +808,11 @@ impl eframe::App for PdfCraftApp {
             (None, _) => self.tool_owner = None,
             _ => {}
         }
+        // Windows: the app's name and the menus above the tab strip, in the band that carries the
+        // window buttons. Other platforms draw no such row.
+        if chrome::draws_title_bar(self) {
+            chrome::title_bar(self, ui);
+        }
         chrome::tab_strip(self, ui);
         // Whichever way another tab came to the front, it shows instead of the expanded view.
         if self.all_tools_full && self.all_tools_tab != self.shown_tab() {
